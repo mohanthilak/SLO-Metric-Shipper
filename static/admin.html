@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLO Metric Generator - Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .endpoint-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .endpoint-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .endpoint-name {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .endpoint-path {
+            color: #666;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        .validation-indicator {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+
+        .validation-indicator.valid {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .validation-indicator.invalid {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .card-section {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .slider-group {
+            margin-bottom: 15px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .label-text {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .label-value {
+            font-weight: 600;
+            font-size: 1.1em;
+            min-width: 60px;
+            text-align: right;
+        }
+
+        .success { color: #28a745; }
+        .client-error { color: #ffc107; }
+        .server-error { color: #dc3545; }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 8px;
+            border-radius: 4px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            border: 2px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            border: 2px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .slider-success::-webkit-slider-runnable-track {
+            background: linear-gradient(to right, #28a745 0%, #28a745 var(--value), #e9ecef var(--value), #e9ecef 100%);
+        }
+
+        .slider-client-error::-webkit-slider-runnable-track {
+            background: linear-gradient(to right, #ffc107 0%, #ffc107 var(--value), #e9ecef var(--value), #e9ecef 100%);
+        }
+
+        .slider-server-error::-webkit-slider-runnable-track {
+            background: linear-gradient(to right, #dc3545 0%, #dc3545 var(--value), #e9ecef var(--value), #e9ecef 100%);
+        }
+
+        input[type="number"] {
+            width: 70px;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .load-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 15px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-group label {
+            font-size: 0.85em;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .input-group input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.95em;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.95em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-start {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-start:hover {
+            background: #218838;
+        }
+
+        .btn-start:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .btn-stop {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-stop:hover {
+            background: #c82333;
+        }
+
+        .btn-stop:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 1.3em;
+            font-weight: 700;
+        }
+
+        .stat-value.success { color: #28a745; }
+        .stat-value.warning { color: #ffc107; }
+        .stat-value.danger { color: #dc3545; }
+        .stat-value.info { color: #17a2b8; }
+
+        .loading-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #28a745;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 4px;
+            background: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 1000;
+        }
+
+        .status-message.success {
+            border-left: 4px solid #28a745;
+        }
+
+        .status-message.error {
+            border-left: 4px solid #dc3545;
+        }
+
+        .status-message.show {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .divider {
+            height: 1px;
+            background: #e0e0e0;
+            margin: 20px 0;
+        }
+
+        .config-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .config-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .config-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .config-description {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        #monaco-editor {
+            height: 500px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+
+        .config-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .config-info {
+            background: #f8f9fa;
+            border-left: 4px solid #17a2b8;
+            padding: 12px 15px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            margin-top: 15px;
+        }
+
+        .config-info-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .config-info ul {
+            margin-left: 20px;
+            color: #666;
+        }
+
+        .config-info li {
+            margin: 4px 0;
+        }
+
+        .config-info code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.95em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SLO Metric Generator</h1>
+        <p class="subtitle">Configure status code distribution and generate load for each endpoint</p>
+
+        <div id="endpoints"></div>
+
+        <!-- OpenTelemetry Collector Configuration Editor -->
+        <div class="config-card">
+            <div class="config-header">
+                <div class="config-title">OpenTelemetry Collector Configuration</div>
+                <div class="config-description">Edit the OTel Collector configuration in real-time. Changes will restart the collector automatically.</div>
+            </div>
+
+            <div id="monaco-editor"></div>
+
+            <div class="config-actions">
+                <button class="btn btn-primary" onclick="saveOtelConfig()">💾 Save & Restart Collector</button>
+                <button class="btn btn-secondary" onclick="resetOtelConfig()">↺ Reset to Last Saved</button>
+            </div>
+
+            <div class="config-info">
+                <div class="config-info-title">📊 Collector Endpoints:</div>
+                <ul>
+                    <li><strong>OTLP gRPC:</strong> <code>localhost:4317</code> (metrics ingestion)</li>
+                    <li><strong>Prometheus:</strong> <code>http://localhost:8889/metrics</code> (metrics export)</li>
+                    <li><strong>Health Check:</strong> <code>http://localhost:13133</code> (collector health)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div id="statusMessage" class="status-message"></div>
+
+    <!-- Monaco Editor from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+
+    <script>
+        let endpoints = {};
+        let loadStats = {};
+        let statsRefreshInterval = null;
+
+        const endpointPaths = {
+            'users': '/api/users',
+            'products': '/api/products',
+            'orders': '/api/orders',
+            'checkout': '/api/checkout',
+            'health': '/api/health'
+        };
+
+        // Load initial configuration
+        async function loadConfig() {
+            try {
+                const response = await fetch('/admin/api/config');
+                const data = await response.json();
+                endpoints = data.endpoints;
+                await loadLoadStats();
+                renderEndpoints();
+                startStatsRefresh();
+            } catch (error) {
+                showStatus('Failed to load configuration', 'error');
+                console.error('Error loading config:', error);
+            }
+        }
+
+        // Load load generation statistics
+        async function loadLoadStats() {
+            try {
+                const response = await fetch('/admin/api/loadgen/stats');
+                const data = await response.json();
+                loadStats = data.stats;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Start auto-refresh of stats
+        function startStatsRefresh() {
+            if (statsRefreshInterval) {
+                clearInterval(statsRefreshInterval);
+            }
+            statsRefreshInterval = setInterval(async () => {
+                await loadLoadStats();
+                updateAllStats();
+            }, 1000);
+        }
+
+        // Update all statistics displays
+        function updateAllStats() {
+            for (const [name, stats] of Object.entries(loadStats)) {
+                updateStatsDisplay(name, stats);
+            }
+        }
+
+        // Render all endpoints
+        function renderEndpoints() {
+            const container = document.getElementById('endpoints');
+            container.innerHTML = '';
+
+            for (const [name, config] of Object.entries(endpoints)) {
+                const stats = loadStats[name] || { isRunning: false };
+                const card = createEndpointCard(name, config, stats);
+                container.appendChild(card);
+            }
+        }
+
+        // Create endpoint card
+        function createEndpointCard(name, config, stats) {
+            const card = document.createElement('div');
+            card.className = 'endpoint-card';
+
+            const successRate = Math.round(config.SuccessRate * 100);
+            const clientErrorRate = Math.round(config.ClientErrorRate * 100);
+            const serverErrorRate = Math.round(config.ServerErrorRate * 100);
+            const total = successRate + clientErrorRate + serverErrorRate;
+            const isValid = total === 100;
+
+            card.innerHTML = `
+                <div class="endpoint-header">
+                    <div>
+                        <div class="endpoint-name">${name.charAt(0).toUpperCase() + name.slice(1)}</div>
+                        <div class="endpoint-path">${endpointPaths[name]}</div>
+                    </div>
+                    <div class="validation-indicator ${isValid ? 'valid' : 'invalid'}" id="validation-${name}">
+                        ${isValid ? '✓ Valid (100%)' : `⚠ Invalid (${total}%)`}
+                    </div>
+                </div>
+
+                <div class="card-section">
+                    <div class="section-title">Status Code Distribution</div>
+
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span class="label-text">Success (2xx)</span>
+                            <span class="label-value success" id="success-value-${name}">${successRate}%</span>
+                        </div>
+                        <div class="slider-container">
+                            <input type="range" min="0" max="100" value="${successRate}"
+                                   class="slider-success" id="success-${name}"
+                                   style="--value: ${successRate}%"
+                                   oninput="updateSlider('${name}', 'success', this.value)">
+                            <input type="number" min="0" max="100" value="${successRate}"
+                                   id="success-input-${name}"
+                                   onchange="updateFromInput('${name}', 'success', this.value)">
+                        </div>
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span class="label-text">Client Error (4xx)</span>
+                            <span class="label-value client-error" id="client-error-value-${name}">${clientErrorRate}%</span>
+                        </div>
+                        <div class="slider-container">
+                            <input type="range" min="0" max="100" value="${clientErrorRate}"
+                                   class="slider-client-error" id="client-error-${name}"
+                                   style="--value: ${clientErrorRate}%"
+                                   oninput="updateSlider('${name}', 'client-error', this.value)">
+                            <input type="number" min="0" max="100" value="${clientErrorRate}"
+                                   id="client-error-input-${name}"
+                                   onchange="updateFromInput('${name}', 'client-error', this.value)">
+                        </div>
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span class="label-text">Server Error (5xx)</span>
+                            <span class="label-value server-error" id="server-error-value-${name}">${serverErrorRate}%</span>
+                        </div>
+                        <div class="slider-container">
+                            <input type="range" min="0" max="100" value="${serverErrorRate}"
+                                   class="slider-server-error" id="server-error-${name}"
+                                   style="--value: ${serverErrorRate}%"
+                                   oninput="updateSlider('${name}', 'server-error', this.value)">
+                            <input type="number" min="0" max="100" value="${serverErrorRate}"
+                                   id="server-error-input-${name}"
+                                   onchange="updateFromInput('${name}', 'server-error', this.value)">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="card-section">
+                    <div class="section-title">Load Generation ${stats.isRunning ? '<span class="loading-indicator"></span>' : ''}</div>
+
+                    <div class="load-controls">
+                        <div class="input-group">
+                            <label for="rps-${name}">Requests/Second</label>
+                            <input type="number" id="rps-${name}" min="1" max="1000" value="10"
+                                   ${stats.isRunning ? 'disabled' : ''}>
+                        </div>
+                        <div class="input-group">
+                            <label for="total-${name}">Total Requests (0 = unlimited)</label>
+                            <input type="number" id="total-${name}" min="0" value="0"
+                                   ${stats.isRunning ? 'disabled' : ''}>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-start" id="start-${name}"
+                                    onclick="startLoad('${name}')"
+                                    ${stats.isRunning ? 'disabled' : ''}>
+                                Start
+                            </button>
+                            <button class="btn btn-stop" id="stop-${name}"
+                                    onclick="stopLoad('${name}')"
+                                    ${!stats.isRunning ? 'disabled' : ''}>
+                                Stop
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid" id="stats-${name}">
+                        <div class="stat-item">
+                            <div class="stat-label">Total Sent</div>
+                            <div class="stat-value info" id="stat-total-${name}">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Success (2xx)</div>
+                            <div class="stat-value success" id="stat-success-${name}">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Client Error (4xx)</div>
+                            <div class="stat-value warning" id="stat-client-error-${name}">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Server Error (5xx)</div>
+                            <div class="stat-value danger" id="stat-server-error-${name}">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Elapsed Time</div>
+                            <div class="stat-value" id="stat-elapsed-${name}">0s</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Success Rate</div>
+                            <div class="stat-value" id="stat-rate-${name}">0%</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            return card;
+        }
+
+        // Update statistics display
+        function updateStatsDisplay(name, stats) {
+            if (!stats) return;
+
+            const totalEl = document.getElementById(`stat-total-${name}`);
+            const successEl = document.getElementById(`stat-success-${name}`);
+            const clientErrorEl = document.getElementById(`stat-client-error-${name}`);
+            const serverErrorEl = document.getElementById(`stat-server-error-${name}`);
+            const elapsedEl = document.getElementById(`stat-elapsed-${name}`);
+            const rateEl = document.getElementById(`stat-rate-${name}`);
+            const startBtn = document.getElementById(`start-${name}`);
+            const stopBtn = document.getElementById(`stop-${name}`);
+            const rpsInput = document.getElementById(`rps-${name}`);
+            const totalInput = document.getElementById(`total-${name}`);
+
+            if (totalEl) totalEl.textContent = stats.requestsSent || 0;
+            if (successEl) successEl.textContent = stats.successCount || 0;
+            if (clientErrorEl) clientErrorEl.textContent = stats.clientErrorCount || 0;
+            if (serverErrorEl) serverErrorEl.textContent = stats.serverErrorCount || 0;
+
+            if (elapsedEl) {
+                const elapsed = stats.elapsedSeconds || 0;
+                elapsedEl.textContent = elapsed.toFixed(1) + 's';
+            }
+
+            if (rateEl) {
+                const total = stats.requestsSent || 0;
+                const success = stats.successCount || 0;
+                const rate = total > 0 ? ((success / total) * 100).toFixed(1) : 0;
+                rateEl.textContent = rate + '%';
+            }
+
+            // Update button states
+            if (startBtn && stopBtn) {
+                startBtn.disabled = stats.isRunning;
+                stopBtn.disabled = !stats.isRunning;
+                if (rpsInput) rpsInput.disabled = stats.isRunning;
+                if (totalInput) totalInput.disabled = stats.isRunning;
+            }
+
+            // Update section title
+            const sectionTitle = document.querySelector(`#stats-${name}`).previousElementSibling.previousElementSibling;
+            if (sectionTitle) {
+                sectionTitle.innerHTML = `Load Generation ${stats.isRunning ? '<span class="loading-indicator"></span>' : ''}`;
+            }
+        }
+
+        // Start load generation
+        async function startLoad(endpoint) {
+            const rps = parseInt(document.getElementById(`rps-${endpoint}`).value);
+            const total = parseInt(document.getElementById(`total-${endpoint}`).value);
+
+            try {
+                const response = await fetch('/admin/api/loadgen/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        endpoint: endpoint,
+                        requestsPerSec: rps,
+                        totalRequests: total
+                    })
+                });
+
+                if (response.ok) {
+                    showStatus(`Started load generation for ${endpoint}`, 'success');
+                    await loadLoadStats();
+                    updateStatsDisplay(endpoint, loadStats[endpoint]);
+                } else {
+                    const error = await response.text();
+                    showStatus(`Failed to start: ${error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Stop load generation
+        async function stopLoad(endpoint) {
+            try {
+                const response = await fetch('/admin/api/loadgen/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ endpoint: endpoint })
+                });
+
+                if (response.ok) {
+                    showStatus(`Stopped load generation for ${endpoint}`, 'success');
+                    await loadLoadStats();
+                    updateStatsDisplay(endpoint, loadStats[endpoint]);
+                } else {
+                    const error = await response.text();
+                    showStatus(`Failed to stop: ${error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Update slider and auto-adjust others
+        function updateSlider(endpoint, type, value) {
+            value = parseInt(value);
+
+            // Update display
+            document.getElementById(`${type}-value-${endpoint}`).textContent = `${value}%`;
+            document.getElementById(`${type}-input-${endpoint}`).value = value;
+            document.getElementById(`${type}-${endpoint}`).style.setProperty('--value', `${value}%`);
+
+            // Get current values
+            const success = type === 'success' ? value : parseInt(document.getElementById(`success-${endpoint}`).value);
+            const clientError = type === 'client-error' ? value : parseInt(document.getElementById(`client-error-${endpoint}`).value);
+            const serverError = type === 'server-error' ? value : parseInt(document.getElementById(`server-error-${endpoint}`).value);
+
+            // Check if total exceeds 100
+            const total = success + clientError + serverError;
+
+            // Auto-adjust: if total > 100, reduce the other sliders proportionally
+            if (total > 100) {
+                const excess = total - 100;
+                const others = [];
+
+                if (type !== 'success' && success > 0) others.push('success');
+                if (type !== 'client-error' && clientError > 0) others.push('client-error');
+                if (type !== 'server-error' && serverError > 0) others.push('server-error');
+
+                if (others.length > 0) {
+                    const reductionPer = Math.ceil(excess / others.length);
+
+                    others.forEach(other => {
+                        const currentVal = parseInt(document.getElementById(`${other}-${endpoint}`).value);
+                        const newVal = Math.max(0, currentVal - reductionPer);
+                        updateSliderValue(endpoint, other, newVal);
+                    });
+                }
+            }
+
+            // Update validation indicator
+            updateValidation(endpoint);
+
+            // Debounce the API call
+            clearTimeout(window[`debounce_${endpoint}`]);
+            window[`debounce_${endpoint}`] = setTimeout(() => {
+                saveConfig(endpoint);
+            }, 500);
+        }
+
+        // Update from number input
+        function updateFromInput(endpoint, type, value) {
+            value = Math.max(0, Math.min(100, parseInt(value) || 0));
+            document.getElementById(`${type}-${endpoint}`).value = value;
+            updateSlider(endpoint, type, value);
+        }
+
+        // Update slider value programmatically
+        function updateSliderValue(endpoint, type, value) {
+            document.getElementById(`${type}-${endpoint}`).value = value;
+            document.getElementById(`${type}-input-${endpoint}`).value = value;
+            document.getElementById(`${type}-value-${endpoint}`).textContent = `${value}%`;
+            document.getElementById(`${type}-${endpoint}`).style.setProperty('--value', `${value}%`);
+        }
+
+        // Update validation indicator
+        function updateValidation(endpoint) {
+            const success = parseInt(document.getElementById(`success-${endpoint}`).value);
+            const clientError = parseInt(document.getElementById(`client-error-${endpoint}`).value);
+            const serverError = parseInt(document.getElementById(`server-error-${endpoint}`).value);
+            const total = success + clientError + serverError;
+            const isValid = total === 100;
+
+            const indicator = document.getElementById(`validation-${endpoint}`);
+            indicator.className = `validation-indicator ${isValid ? 'valid' : 'invalid'}`;
+            indicator.textContent = isValid ? '✓ Valid (100%)' : `⚠ Invalid (${total}%)`;
+        }
+
+        // Save configuration to backend
+        async function saveConfig(endpoint) {
+            const success = parseInt(document.getElementById(`success-${endpoint}`).value) / 100;
+            const clientError = parseInt(document.getElementById(`client-error-${endpoint}`).value) / 100;
+            const serverError = parseInt(document.getElementById(`server-error-${endpoint}`).value) / 100;
+
+            try {
+                const response = await fetch('/admin/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        endpoint: endpoint,
+                        successRate: success,
+                        clientErrorRate: clientError,
+                        serverErrorRate: serverError,
+                    }),
+                });
+
+                if (response.ok) {
+                    showStatus(`Updated ${endpoint} configuration`, 'success');
+                } else {
+                    const error = await response.text();
+                    showStatus(`Failed to update ${endpoint}: ${error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Network error: ${error.message}`, 'error');
+                console.error('Error saving config:', error);
+            }
+        }
+
+        // Show status message
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = `status-message ${type} show`;
+
+            setTimeout(() => {
+                statusEl.className = 'status-message';
+            }, 3000);
+        }
+
+        // ===== OpenTelemetry Collector Config Editor =====
+        let monacoEditor = null;
+        let savedOtelConfig = '';
+
+        // Initialize Monaco Editor
+        function initMonacoEditor() {
+            require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+            require(['vs/editor/editor.main'], function () {
+                monacoEditor = monaco.editor.create(document.getElementById('monaco-editor'), {
+                    value: '# Loading configuration...',
+                    language: 'yaml',
+                    theme: 'vs-light',
+                    automaticLayout: true,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    fontSize: 13,
+                    lineNumbers: 'on',
+                    renderWhitespace: 'selection',
+                    tabSize: 2
+                });
+
+                // Load the OTel config after editor is initialized
+                loadOtelConfig();
+            });
+        }
+
+        // Load OTel Collector configuration
+        async function loadOtelConfig() {
+            try {
+                const response = await fetch('/admin/api/otel-config');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+
+                const data = await response.json();
+                savedOtelConfig = data.config;
+
+                if (monacoEditor) {
+                    monacoEditor.setValue(savedOtelConfig);
+                }
+            } catch (error) {
+                console.error('Error loading OTel config:', error);
+                showStatus(`Failed to load OTel config: ${error.message}`, 'error');
+                if (monacoEditor) {
+                    monacoEditor.setValue('# Error loading configuration\n# ' + error.message);
+                }
+            }
+        }
+
+        // Save OTel Collector configuration
+        async function saveOtelConfig() {
+            if (!monacoEditor) {
+                showStatus('Editor not initialized', 'error');
+                return;
+            }
+
+            const newConfig = monacoEditor.getValue();
+
+            // Basic validation
+            if (!newConfig || newConfig.trim().length === 0) {
+                showStatus('Configuration cannot be empty', 'error');
+                return;
+            }
+
+            try {
+                showStatus('Saving configuration and restarting collector...', 'success');
+
+                const response = await fetch('/admin/api/otel-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ config: newConfig })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    savedOtelConfig = newConfig;
+
+                    if (result.warning) {
+                        showStatus(result.message + ' (Warning: ' + result.warning + ')', 'success');
+                    } else {
+                        showStatus(result.message || 'Configuration saved and collector restarted successfully', 'success');
+                    }
+                } else {
+                    const errorText = await response.text();
+                    showStatus(`Failed to save config: ${errorText}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error saving OTel config:', error);
+                showStatus(`Error saving config: ${error.message}`, 'error');
+            }
+        }
+
+        // Reset OTel configuration to last saved version
+        function resetOtelConfig() {
+            if (!monacoEditor) {
+                showStatus('Editor not initialized', 'error');
+                return;
+            }
+
+            if (!savedOtelConfig) {
+                showStatus('No saved configuration to reset to', 'error');
+                return;
+            }
+
+            monacoEditor.setValue(savedOtelConfig);
+            showStatus('Configuration reset to last saved version', 'success');
+        }
+
+        // Initialize on page load
+        loadConfig();
+        initMonacoEditor();
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (statsRefreshInterval) {
+                clearInterval(statsRefreshInterval);
+            }
+            if (monacoEditor) {
+                monacoEditor.dispose();
+            }
+        });
+    </script>
+</body>
+</html>

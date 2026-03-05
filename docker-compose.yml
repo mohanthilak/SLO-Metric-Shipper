@@ -1,0 +1,70 @@
+services:
+  # SLO Metric Generator Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: slo-metric-generator
+    ports:
+      - "8080:8080"
+    environment:
+      # Point to the otel-collector service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+      - OTEL_COLLECTOR_CONTAINER=otel-collector
+    volumes:
+      # Mount Docker socket for container management (read-only)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Mount configs directory for persistence
+      - ./configs:/app/configs
+    depends_on:
+      - otel-collector
+    networks:
+      - slo-network
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.96.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    ports:
+      # OTLP gRPC receiver
+      - "4317:4317"
+      # Prometheus metrics exporter
+      - "8889:8889"
+      # Health check endpoint
+      - "13133:13133"
+    volumes:
+      # Mount the active config file
+      - ./configs/otel-collector.yaml:/etc/otel-collector-config.yaml:ro
+    networks:
+      - slo-network
+    # Note: Docker health check not configured (distroless image has no shell)
+    # Use HTTP endpoint http://localhost:13133 for health monitoring
+
+  # Prometheus Server
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      # Prometheus web UI and API
+      - "9090:9090"
+    volumes:
+      # Mount Prometheus configuration
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Mount data directory for persistence
+      - ./prometheus-data:/prometheus
+    networks:
+      - slo-network
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
+
+networks:
+  slo-network:
+    driver: bridge

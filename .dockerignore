@@ -1,0 +1,12 @@
+# Ignore unnecessary files for Docker build
+.git
+.gitignore
+.idea
+.claude
+*.md
+!QUICKSTART.md
+!README.md
+slo-metric-generator
+*.log
+.DS_Store
+configs/otel-collector.yaml

@@ -1,0 +1,64 @@
+# Default OpenTelemetry Collector Configuration
+# This is the template configuration that will be copied to otel-collector.yaml on first run
+# You can edit this through the Admin UI at http://localhost:8080/admin
+
+receivers:
+  # OTLP receiver for metrics from the SLO Metric Generator
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Batch processor to improve performance
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+exporters:
+  # Logging exporter for debugging - outputs to collector logs
+  logging:
+    loglevel: info
+
+  # Prometheus exporter - exposes metrics at http://localhost:8889/metrics
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: slo
+    const_labels:
+      environment: docker
+
+  # Uncomment to export to external backends:
+
+  # # OTLP HTTP exporter (e.g., to Grafana Cloud, Honeycomb, etc.)
+  # otlphttp:
+  #   endpoint: https://your-backend.example.com
+  #   headers:
+  #     authorization: Bearer YOUR_API_KEY
+
+  # # Prometheus Remote Write (e.g., to Grafana Cloud, Mimir, etc.)
+  # prometheusremotewrite:
+  #   endpoint: https://prometheus-us-central1.grafana.net/api/prom/push
+  #   headers:
+  #     authorization: Basic YOUR_BASE64_CREDENTIALS
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [logging, prometheus]
+
+  # Telemetry configuration
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: 0.0.0.0:8888

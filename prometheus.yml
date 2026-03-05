@@ -1,0 +1,22 @@
+# Prometheus Configuration for SLO Metric Generator
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: 'docker'
+    cluster: 'slo-metrics'
+
+# Scrape configurations
+scrape_configs:
+  # Scrape metrics from OpenTelemetry Collector Prometheus exporter
+  - job_name: 'slo-metrics'
+    static_configs:
+      - targets: ['otel-collector:8889']
+        labels:
+          service: 'otel-collector'
+
+  # Scrape Prometheus own metrics
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

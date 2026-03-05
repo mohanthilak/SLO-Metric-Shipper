@@ -1,0 +1,79 @@
+# Binaries
+slo-metric-generator
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+*.cov
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Active OTel collector config (user-specific, generated from default)
+configs/otel-collector.yaml
+configs/otel-collector.yaml.backup
+configs/*.backup
+
+# Prometheus data directory (persistent time-series database)
+prometheus-data/
+
+# Docker volumes and build cache
+.docker/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Environment variables (if used in future)
+.env
+.env.local
+.env.*.local
+
+# Claude Code specific
+.claude/
+
+# Build artifacts
+dist/
+build/
+
+# Backup files
+*.bak
+*~
