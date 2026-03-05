@@ -64,10 +64,10 @@ func InitMetrics(ctx context.Context) error {
 	// Create meter
 	meter = otel.Meter("slo-metric-generator")
 
-	// Create http_requests_total counter
+	// Create mt_http_requests_total counter
 	requestCounter, err = meter.Int64Counter(
-		"http_requests_total",
-		metricapi.WithDescription("Total number of HTTP requests"),
+		"mt_http_requests_total",
+		metricapi.WithDescription("Total number of HTTP requests for SLO monitoring"),
 		metricapi.WithUnit("{request}"),
 	)
 	if err != nil {
