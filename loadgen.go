@@ -8,6 +8,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // LoadGenerator manages traffic generation for endpoints
@@ -58,6 +62,9 @@ func NewLoadGenerator(serverURL string) *LoadGenerator {
 		activeJobs: make(map[string]*LoadJob),
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
+			// otelhttp.NewTransport produces a client span per request and injects
+			// W3C tracecontext headers so the server-side span becomes its child.
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
 		},
 		serverURL: serverURL,
 	}
@@ -190,7 +197,7 @@ func (lg *LoadGenerator) runLoadJob(ctx context.Context, job *LoadJob) {
 			return
 		case <-ticker.C:
 			// Send request
-			go lg.sendRequest(url, job)
+			go lg.sendRequest(ctx, url, job)
 
 			// Check if we've reached total requests
 			if job.TotalRequests > 0 && job.requestsSent.Load() >= int64(job.TotalRequests) {
@@ -200,11 +207,30 @@ func (lg *LoadGenerator) runLoadJob(ctx context.Context, job *LoadJob) {
 	}
 }
 
-// sendRequest sends a single HTTP request
-func (lg *LoadGenerator) sendRequest(url string, job *LoadJob) {
+// sendRequest sends a single HTTP request, wrapped in a fresh trace so each
+// load-gen iteration shows up as its own trace tree in the backend.
+func (lg *LoadGenerator) sendRequest(ctx context.Context, url string, job *LoadJob) {
 	job.requestsSent.Add(1)
 
-	resp, err := lg.httpClient.Get(url)
+	var span trace.Span
+	if tracer != nil {
+		ctx, span = tracer.Start(ctx, "loadgen.request",
+			trace.WithSpanKind(trace.SpanKindClient),
+			trace.WithAttributes(
+				attribute.String("loadgen.endpoint", job.Endpoint),
+				attribute.Int("loadgen.target_rps", job.RequestsPerSec),
+			),
+		)
+		defer span.End()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		job.serverErrorCount.Add(1)
+		return
+	}
+
+	resp, err := lg.httpClient.Do(req)
 	if err != nil {
 		// Network error - count as server error
 		job.serverErrorCount.Add(1)
@@ -223,5 +249,9 @@ func (lg *LoadGenerator) sendRequest(url string, job *LoadJob) {
 		job.clientErrorCount.Add(1)
 	} else if statusCode >= 500 {
 		job.serverErrorCount.Add(1)
+	}
+
+	if span != nil {
+		span.SetAttributes(attribute.Int("http.response.status_code", statusCode))
 	}
 }

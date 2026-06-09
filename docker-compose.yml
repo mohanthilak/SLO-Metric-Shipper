@@ -25,7 +25,6 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.96.0
     container_name: otel-collector
-    command: ["--config=/etc/otel-collector-config.yaml"]
     ports:
       # OTLP gRPC receiver
       - "4317:4317"
@@ -36,6 +35,7 @@ services:
     volumes:
       # Mount the active config file
       - ./configs/otel-collector.yaml:/etc/otel-collector-config.yaml:ro
+    command: ["--config=/etc/otel-collector-config.yaml"]
     networks:
       - slo-network
     # Note: Docker health check not configured (distroless image has no shell)

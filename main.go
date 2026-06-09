@@ -8,6 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func main() {
@@ -26,6 +28,18 @@ func main() {
 		}
 	}()
 
+	// Initialize OpenTelemetry traces
+	if err := InitTraces(ctx); err != nil {
+		log.Fatalf("Failed to initialize traces: %v", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := ShutdownTraces(shutdownCtx); err != nil {
+			log.Printf("Error shutting down traces: %v", err)
+		}
+	}()
+
 	// Create configuration store
 	config := NewConfig()
 
@@ -41,10 +55,17 @@ func main() {
 	// Setup admin handlers
 	SetupAdminHandlers(mux, config, loadGen)
 
+	// Wrap the mux so inbound requests produce server-side spans.
+	tracedHandler := otelhttp.NewHandler(mux, "http.server",
+		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+			return r.Method + " " + r.URL.Path
+		}),
+	)
+
 	// Create HTTP server
 	server := &http.Server{
 		Addr:         ":8080",
-		Handler:      mux,
+		Handler:      tracedHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
