@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"time"
@@ -48,6 +49,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span.SetAttributes(
 		attribute.String("api.endpoint", h.endpointName),
 		attribute.Int("http.response.status_code", statusCode),
+		attribute.String("http.status_class", fmt.Sprintf("%dxx", statusCode/100)),
 	)
 	if statusCode >= 500 {
 		span.SetStatus(codes.Error, "upstream error")

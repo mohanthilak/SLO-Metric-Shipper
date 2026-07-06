@@ -252,6 +252,9 @@ func (lg *LoadGenerator) sendRequest(ctx context.Context, url string, job *LoadJ
 	}
 
 	if span != nil {
-		span.SetAttributes(attribute.Int("http.response.status_code", statusCode))
+		span.SetAttributes(
+			attribute.Int("http.response.status_code", statusCode),
+			attribute.String("http.status_class", fmt.Sprintf("%dxx", statusCode/100)),
+		)
 	}
 }
