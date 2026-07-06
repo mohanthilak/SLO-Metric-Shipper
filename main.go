@@ -40,6 +40,18 @@ func main() {
 		}
 	}()
 
+	// Initialize OpenTelemetry logs
+	if err := InitLogs(ctx); err != nil {
+		log.Fatalf("Failed to initialize logs: %v", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := ShutdownLogs(shutdownCtx); err != nil {
+			log.Printf("Error shutting down logs: %v", err)
+		}
+	}()
+
 	// Create configuration store
 	config := NewConfig()
 

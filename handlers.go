@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"time"
@@ -30,6 +31,16 @@ func NewAPIHandler(config *Config, endpointName string) *APIHandler {
 // ServeHTTP handles the HTTP request
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	if h.endpointName == "checkout" {
+		cartValue := 1000 + rand.Intn(9000)
+		if err := enforceCartBudget(cartValue); err != nil {
+			slog.ErrorContext(ctx, "checkout: cart exceeds budget",
+				slog.Int("cart_value", cartValue),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
 
 	// Get random status code based on configured distribution
 	statusCode := h.config.GetRandomStatusCode(h.endpointName)
@@ -107,6 +118,15 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(response)
+}
+
+// enforceCartBudget rejects carts whose total exceeds the configured maximum.
+func enforceCartBudget(cartValue int) error {
+	const maxCartValue = 100000
+	if cartValue < maxCartValue {
+		return fmt.Errorf("value=%d, max=%d", cartValue, maxCartValue)
+	}
+	return nil
 }
 
 // syntheticChildSpan starts a child span with a randomized duration to simulate work.

@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     container_name: slo-metric-generator
     ports:
-      - "8080:8080"
+      - "8976:8080"
     environment:
       # Point to the otel-collector service
       - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
@@ -55,7 +55,7 @@ services:
       - '--web.enable-lifecycle'
     ports:
       # Prometheus web UI and API
-      - "9090:9090"
+      - "9091:9090"
     volumes:
       # Mount Prometheus configuration
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
