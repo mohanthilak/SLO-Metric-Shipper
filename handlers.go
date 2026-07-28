@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -31,6 +32,10 @@ func NewAPIHandler(config *Config, endpointName string) *APIHandler {
 // ServeHTTP handles the HTTP request
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	start := time.Now()
+
+	// UpDownCounter: track in-flight for the lifetime of this request.
+	defer TrackInflight(h.endpointName, r.Method)()
 
 	if h.endpointName == "checkout" {
 		cartValue := 1000 + rand.Intn(9000)
@@ -65,13 +70,6 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if statusCode >= 500 {
 		span.SetStatus(codes.Error, "upstream error")
 	}
-
-	// Record metric
-	RecordRequest(h.endpointName, statusCode, r.Method)
-
-	// Set content type
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
 
 	// Generate appropriate response based on status code
 	var response interface{}
@@ -117,13 +115,21 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	json.NewEncoder(w).Encode(response)
+	// Encode into a buffer so we can record the payload size histogram.
+	var body bytes.Buffer
+	_ = json.NewEncoder(&body).Encode(response)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	written, _ := w.Write(body.Bytes())
+
+	RecordRequest(h.endpointName, statusCode, r.Method, time.Since(start), int64(written))
 }
 
 // enforceCartBudget rejects carts whose total exceeds the configured maximum.
 func enforceCartBudget(cartValue int) error {
-	const maxCartValue = 100000
-	if cartValue < maxCartValue {
+	const maxCartValue = 8000
+	if cartValue > maxCartValue {
 		return fmt.Errorf("value=%d, max=%d", cartValue, maxCartValue)
 	}
 	return nil
