@@ -796,10 +796,15 @@
 
     <!-- Monaco Editor from CDN -->
     <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
-    <!-- Chart.js — self-hosted from static/vendor to avoid CDN dependencies. -->
-    <script src="/static/vendor/chart.min.js"></script>
+    <!-- Chart.js — self-hosted from static/vendor to avoid CDN dependencies.
+         Relative src so it resolves under a reverse-proxy prefix (e.g. /slo/admin → /slo/static/...). -->
+    <script src="static/vendor/chart.min.js"></script>
 
     <script>
+        // Path prefix the app is mounted under: '' when served at /admin, '/slo' when a
+        // reverse proxy serves it at /slo/admin. Prepended to every API and asset URL.
+        const BASE = location.pathname.replace(/\/admin\/?$/, '');
+
         let endpoints = {};
         let loadStats = {};
         let statsRefreshInterval = null;
@@ -815,7 +820,7 @@
         // Load initial configuration
         async function loadConfig() {
             try {
-                const response = await fetch('/admin/api/config');
+                const response = await fetch(BASE + '/admin/api/config');
                 const data = await response.json();
                 endpoints = data.endpoints;
                 await loadLoadStats();
@@ -830,7 +835,7 @@
         // Load load generation statistics
         async function loadLoadStats() {
             try {
-                const response = await fetch('/admin/api/loadgen/stats');
+                const response = await fetch(BASE + '/admin/api/loadgen/stats');
                 const data = await response.json();
                 loadStats = data.stats;
             } catch (error) {
@@ -1057,7 +1062,7 @@
             const total = parseInt(document.getElementById(`total-${endpoint}`).value);
 
             try {
-                const response = await fetch('/admin/api/loadgen/start', {
+                const response = await fetch(BASE + '/admin/api/loadgen/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1083,7 +1088,7 @@
         // Stop load generation
         async function stopLoad(endpoint) {
             try {
-                const response = await fetch('/admin/api/loadgen/stop', {
+                const response = await fetch(BASE + '/admin/api/loadgen/stop', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ endpoint: endpoint })
@@ -1184,7 +1189,7 @@
             const serverError = parseInt(document.getElementById(`server-error-${endpoint}`).value) / 100;
 
             try {
-                const response = await fetch('/admin/api/config', {
+                const response = await fetch(BASE + '/admin/api/config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1247,7 +1252,7 @@
         // Load OTel Collector configuration
         async function loadOtelConfig() {
             try {
-                const response = await fetch('/admin/api/otel-config');
+                const response = await fetch(BASE + '/admin/api/otel-config');
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${await response.text()}`);
                 }
@@ -1285,7 +1290,7 @@
             try {
                 showStatus('Saving configuration and restarting collector...', 'success');
 
-                const response = await fetch('/admin/api/otel-config', {
+                const response = await fetch(BASE + '/admin/api/otel-config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ config: newConfig })
@@ -1408,7 +1413,7 @@
         async function initLogGen() {
             // Populate format/sink dropdowns from server metadata.
             try {
-                const resp = await fetch('/admin/api/logloadgen/meta');
+                const resp = await fetch(BASE + '/admin/api/logloadgen/meta');
                 logGenMeta = await resp.json();
             } catch (e) {
                 console.error('logloadgen meta:', e);
@@ -1445,7 +1450,7 @@
                     // and evaluate it in the global scope. This lands `Chart` on window
                     // exactly like the script tag would have.
                     chartStage = 'fetch fallback';
-                    const resp = await fetch('/static/vendor/chart.min.js', {cache: 'no-cache'});
+                    const resp = await fetch(BASE + '/static/vendor/chart.min.js', {cache: 'no-cache'});
                     if (!resp.ok) {
                         throw new Error(`fetch returned ${resp.status} ${resp.statusText}`);
                     }
@@ -1594,7 +1599,7 @@
 
         async function refreshLogGenStats() {
             try {
-                const resp = await fetch('/admin/api/logloadgen/stats');
+                const resp = await fetch(BASE + '/admin/api/logloadgen/stats');
                 if (!resp.ok) return;
                 const stats = await resp.json();
                 renderLogGenStats(stats);
@@ -1702,12 +1707,12 @@
                 headers = { 'Content-Type': 'application/json' };
             }
             try {
-                const resp = await fetch('/admin/api/logloadgen/samples', { method: 'POST', headers, body });
+                const resp = await fetch(BASE + '/admin/api/logloadgen/samples', { method: 'POST', headers, body });
                 if (!resp.ok) { showStatus('Save failed: ' + await resp.text(), 'error'); return; }
                 const r = await resp.json();
                 showStatus(`Saved sample "${r.name}" (${r.bytes} bytes) — reloading formats…`, 'success');
                 // Re-fetch meta so the new "replay:<name>" option appears in the format dropdown.
-                const metaResp = await fetch('/admin/api/logloadgen/meta');
+                const metaResp = await fetch(BASE + '/admin/api/logloadgen/meta');
                 logGenMeta = await metaResp.json();
                 const currentFmt = document.getElementById('lg-format').value;
                 populateLogGenFormats();
@@ -1762,7 +1767,7 @@
                 if (Object.keys(headers).length) body.sinkHeaders = headers;
             }
             try {
-                const resp = await fetch('/admin/api/logloadgen/start', {
+                const resp = await fetch(BASE + '/admin/api/logloadgen/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body),
@@ -1781,7 +1786,7 @@
 
         async function stopLogGen() {
             try {
-                const resp = await fetch('/admin/api/logloadgen/stop', {
+                const resp = await fetch(BASE + '/admin/api/logloadgen/stop', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: '{}',
@@ -1808,7 +1813,7 @@
 
         async function initMetricGen() {
             try {
-                const resp = await fetch('/admin/api/metricloadgen/meta');
+                const resp = await fetch(BASE + '/admin/api/metricloadgen/meta');
                 metricGenMeta = await resp.json();
             } catch (e) {
                 console.error('metricloadgen meta:', e);
@@ -1881,7 +1886,7 @@
 
         async function refreshMetricGenStats() {
             try {
-                const resp = await fetch('/admin/api/metricloadgen/stats');
+                const resp = await fetch(BASE + '/admin/api/metricloadgen/stats');
                 if (!resp.ok) return;
                 const stats = await resp.json();
                 renderMetricGenStats(stats);
@@ -1947,7 +1952,7 @@
                 kinds:            kinds,
             };
             try {
-                const resp = await fetch('/admin/api/metricloadgen/start', {
+                const resp = await fetch(BASE + '/admin/api/metricloadgen/start', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
                 });
                 if (!resp.ok) { showStatus(`Failed to start metric gen: ${await resp.text()}`, 'error'); return; }
@@ -1961,7 +1966,7 @@
 
         async function stopMetricGen() {
             try {
-                const resp = await fetch('/admin/api/metricloadgen/stop', {
+                const resp = await fetch(BASE + '/admin/api/metricloadgen/stop', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
                 });
                 if (!resp.ok) { showStatus(`Failed to stop metric gen: ${await resp.text()}`, 'error'); return; }
@@ -1982,7 +1987,7 @@
 
         async function initTraceGen() {
             try {
-                const resp = await fetch('/admin/api/traceloadgen/meta');
+                const resp = await fetch(BASE + '/admin/api/traceloadgen/meta');
                 traceGenMeta = await resp.json();
             } catch (e) {
                 console.error('traceloadgen meta:', e);
@@ -2054,7 +2059,7 @@
 
         async function refreshTraceGenStats() {
             try {
-                const resp = await fetch('/admin/api/traceloadgen/stats');
+                const resp = await fetch(BASE + '/admin/api/traceloadgen/stats');
                 if (!resp.ok) return;
                 renderTraceGenStats(await resp.json());
             } catch (e) {}
@@ -2113,7 +2118,7 @@
                 durationSec:          parseInt(document.getElementById('tg-duration').value, 10) || 0,
             };
             try {
-                const resp = await fetch('/admin/api/traceloadgen/start', {
+                const resp = await fetch(BASE + '/admin/api/traceloadgen/start', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
                 });
                 if (!resp.ok) { showStatus(`Failed to start trace gen: ${await resp.text()}`, 'error'); return; }
@@ -2125,7 +2130,7 @@
 
         async function stopTraceGen() {
             try {
-                const resp = await fetch('/admin/api/traceloadgen/stop', {
+                const resp = await fetch(BASE + '/admin/api/traceloadgen/stop', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
                 });
                 if (!resp.ok) { showStatus(`Failed to stop trace gen: ${await resp.text()}`, 'error'); return; }
