@@ -9,12 +9,22 @@ global:
 
 # Scrape configurations
 scrape_configs:
-  # Scrape metrics from OpenTelemetry Collector Prometheus exporter
+  # User pipeline metrics — exposed by the Prometheus exporter in the collector's
+  # metrics pipeline. Contains the app's `mt_*` series.
   - job_name: 'slo-metrics'
     static_configs:
       - targets: ['otel-collector:8889']
         labels:
           service: 'otel-collector'
+
+  # Collector's own self-telemetry — otelcol_exporter_sent_log_records,
+  # otelcol_exporter_queue_size, otelcol_receiver_accepted_*, etc.
+  # Use these to measure end-to-end log/metric ship rate.
+  - job_name: 'otelcol'
+    static_configs:
+      - targets: ['otel-collector:8888']
+        labels:
+          service: 'otel-collector-internal'
 
   # Scrape Prometheus own metrics
   - job_name: 'prometheus'

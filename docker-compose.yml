@@ -30,7 +30,9 @@ services:
       - "8226:8226"
       # OTLP gRPC receiver
       - "4317:4317"
-      # Prometheus metrics exporter
+      # Collector's own self-telemetry (otelcol_* metrics) for observability of the collector itself
+      - "8888:8888"
+      # Prometheus metrics exporter for user pipeline metrics
       - "8889:8889"
       # Health check endpoint
       - "13133:13133"
@@ -42,6 +44,131 @@ services:
       - slo-network
     # Note: Docker health check not configured (distroless image has no shell)
     # Use HTTP endpoint http://localhost:13133 for health monitoring
+
+  # MinIO — S3-compatible object storage for the LGTM services (Loki, Tempo, Mimir).
+  # Deliberately not named "minio" so it doesn't conflict with any minio you already
+  # run at the host level — this one is scoped to slo-network only.
+  minio-lgtm:
+    image: minio/minio:latest
+    container_name: minio-lgtm
+    command: server /data --console-address ":9101"
+    environment:
+      - MINIO_ROOT_USER=lgtmadmin
+      - MINIO_ROOT_PASSWORD=lgtmadmin123
+    ports:
+      # S3 API and web console — separate ports from the default MinIO so both can
+      # coexist on the host.
+      - "9100:9000"
+      - "9101:9101"
+    volumes:
+      - minio-lgtm-data:/data
+    networks:
+      - slo-network
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Bucket bootstrap — creates the three buckets LGTM needs, then exits.
+  # depends_on with `condition: service_completed_successfully` makes L/T/M wait
+  # for this to finish before starting so they never race on a missing bucket.
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      minio-lgtm:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set lgtm http://minio-lgtm:9000 lgtmadmin lgtmadmin123 &&
+      mc mb --ignore-existing lgtm/loki-data lgtm/tempo-data lgtm/mimir-data &&
+      echo 'buckets ready:' && mc ls lgtm
+      "
+    networks:
+      - slo-network
+
+  # Loki — log store, indexes labels not full text.
+  loki:
+    image: grafana/loki:3.4.1
+    container_name: loki
+    # Run as root so Loki can create its scratch dirs inside the named volume.
+    # Grafana's Loki image ships as uid 10001, but freshly-provisioned docker
+    # volumes come up owned by root — least-friction dev fix is to run as root.
+    user: "0:0"
+    command: ["-config.file=/etc/loki/config.yaml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./configs/loki-config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/var/loki   # local scratch (compactor + WAL); chunks/index live in MinIO
+    networks:
+      - slo-network
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Tempo — trace store. Accepts OTLP internally on 4317/4318; the collector
+  # forwards spans here. Host exposes 3200 for the HTTP query API.
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: tempo
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    ports:
+      - "3200:3200"
+    volumes:
+      - ./configs/tempo-config.yaml:/etc/tempo/config.yaml:ro
+      - tempo-data:/var/tempo
+    networks:
+      - slo-network
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Mimir — Prometheus-compatible metric store. Both remote_write ingestion
+  # and PromQL query happen on 9009.
+  mimir:
+    image: grafana/mimir:2.13.0
+    container_name: mimir
+    # Same volume-ownership reason as Loki above.
+    user: "0:0"
+    command: ["-config.file=/etc/mimir/config.yaml"]
+    ports:
+      - "9009:9009"
+    volumes:
+      - ./configs/mimir-config.yaml:/etc/mimir/config.yaml:ro
+      - mimir-data:/var/mimir
+    networks:
+      - slo-network
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Grafana — provisioned datasource + dashboard for the OTel pipeline
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      # Anonymous admin for local dev — no login prompt.
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      # Skip the "add your first datasource" onboarding.
+      - GF_USERS_DEFAULT_THEME=dark
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - slo-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
 
   # Prometheus Server
   prometheus:
@@ -70,3 +197,13 @@ services:
 networks:
   slo-network:
     driver: bridge
+
+volumes:
+  # Object storage backing all of LGTM. Survives container recreation; wipe with
+  # `docker compose down -v` if you want a clean state.
+  minio-lgtm-data:
+  # Per-service local scratch (WAL, compactor working dir, etc). Not the durable
+  # store — that's MinIO. These can be blown away without data loss.
+  loki-data:
+  tempo-data:
+  mimir-data:

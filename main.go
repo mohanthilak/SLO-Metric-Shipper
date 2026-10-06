@@ -55,8 +55,46 @@ func main() {
 	// Create configuration store
 	config := NewConfig()
 
+	// Listen address is HTTP_ADDR (e.g. ":8181") or defaults to :8080.
+	listenAddr := os.Getenv("HTTP_ADDR")
+	if listenAddr == "" {
+		listenAddr = ":8080"
+	}
+	selfBaseURL := "http://localhost" + listenAddr
+
 	// Create load generator
-	loadGen := NewLoadGenerator("http://localhost:8080")
+	loadGen := NewLoadGenerator(selfBaseURL)
+
+	// Create synthetic log load generator (reuses the OTel LoggerProvider from InitLogs).
+	// Persists last-used config to configs/logloadgen.json — env override for CI/tests.
+	logLoadgenConfigPath := os.Getenv("LOGLOADGEN_CONFIG_PATH")
+	if logLoadgenConfigPath == "" {
+		logLoadgenConfigPath = "configs/logloadgen.json"
+	}
+	otlpSink := NewOTLPSink(loggerProvider)
+	logLoadGen := NewLogLoadGenerator(otlpSink, logLoadgenConfigPath)
+
+	// Synthetic metric load generator — playground for OTel instrument kinds
+	// and cardinality explosion. Uses the same meter set up by InitMetrics.
+	metricLoadgenConfigPath := os.Getenv("METRICLOADGEN_CONFIG_PATH")
+	if metricLoadgenConfigPath == "" {
+		metricLoadgenConfigPath = "configs/metricloadgen.json"
+	}
+	metricLoadGen := NewMetricLoadGenerator(metricLoadgenConfigPath)
+
+	// Synthetic trace load generator — playground for span topology, cardinality,
+	// service-graph richness. Builds its own per-service TracerProviders.
+	traceLoadgenConfigPath := os.Getenv("TRACELOADGEN_CONFIG_PATH")
+	if traceLoadgenConfigPath == "" {
+		traceLoadgenConfigPath = "configs/traceloadgen.json"
+	}
+	traceLoadGen := NewTraceLoadGenerator(traceLoadgenConfigPath)
+	defer func() {
+		if err := logLoadGen.Stop(); err != nil {
+			// Nothing running is fine at shutdown.
+			_ = err
+		}
+	}()
 
 	// Create HTTP mux
 	mux := http.NewServeMux()
@@ -65,7 +103,7 @@ func main() {
 	SetupAPIHandlers(mux, config)
 
 	// Setup admin handlers
-	SetupAdminHandlers(mux, config, loadGen)
+	SetupAdminHandlers(mux, config, loadGen, logLoadGen, metricLoadGen, traceLoadGen)
 
 	// Wrap the mux so inbound requests produce server-side spans.
 	tracedHandler := otelhttp.NewHandler(mux, "http.server",
@@ -76,7 +114,7 @@ func main() {
 
 	// Create HTTP server
 	server := &http.Server{
-		Addr:         ":8080",
+		Addr:         listenAddr,
 		Handler:      tracedHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
@@ -85,8 +123,8 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("Starting SLO Metric Generator on http://localhost:8080")
-		log.Printf("Admin UI available at http://localhost:8080/admin")
+		log.Printf("Starting SLO Metric Generator on %s", selfBaseURL)
+		log.Printf("Admin UI available at %s/admin", selfBaseURL)
 		log.Printf("API endpoints:")
 		log.Printf("  - GET http://localhost:8080/api/users")
 		log.Printf("  - GET http://localhost:8080/api/products")

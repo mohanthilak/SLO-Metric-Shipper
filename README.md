@@ -15,6 +15,27 @@ A lightweight Go application that generates realistic HTTP traffic metrics for t
 - **Docker Compose Ready**: Complete observability stack with one command
 - **No Restart Required**: Configuration changes apply immediately
 - **Thread-Safe**: Concurrent request handling with safe configuration updates
+- **Synthetic Log Generation**: Push high-volume synthetic logs in JSON, Syslog (RFC3164/5424), logfmt, CLF, or plaintext through OTLP or directly over HTTP/TCP/UDP, with live Locust-style charts
+
+## Synthetic Log Generation
+
+The admin UI has a **Synthetic Log Generation** section that emits log records directly (independent of the HTTP endpoints) at an operator-chosen rate, size, and wire format. Use it to stress-test the downstream log-ingest platform.
+
+**Controls**
+
+- Rate (1–200 000 logs/sec), size (64 B–1 MiB per record), format, sink, target endpoint (when needed), worker count (0 = auto), duration (0 = until stopped).
+
+**Sinks — format-faithfulness caveat**
+
+- `OTLP (pipeline)` sends each record through the existing OTel collector pipeline. The record body carries the chosen format string, but the **wire is OTLP**. Use this to test the downstream's OTLP path.
+- `HTTP / TCP / UDP direct` (marked *"format-faithful"* in the UI) sends the raw formatted bytes to the target endpoint. Use these to test how the downstream **parses** a given format (e.g. a syslog collector expecting RFC3164 on UDP:514).
+
+**API**
+
+- `POST /admin/api/logloadgen/start` — body: `{ratePerSec, bytesPerLog, format, sink, sinkTarget, workers, durationSec}`
+- `POST /admin/api/logloadgen/stop`
+- `GET /admin/api/logloadgen/stats` — cumulative totals + a 5-minute sliding window of per-second samples (achieved vs. target rps, throughput, errors). After a job ends the last snapshot is retained until the next start.
+- `GET /admin/api/logloadgen/meta` — format and sink registries (drives the UI dropdowns).
 
 ## Quick Start (Docker)
 

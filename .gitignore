@@ -15,7 +15,7 @@ slo-metric-generator
 coverage.html
 
 # Dependency directories
-vendor/
+/vendor/
 
 # Go workspace file
 go.work
@@ -25,6 +25,8 @@ go.work.sum
 configs/otel-collector.yaml
 configs/otel-collector.yaml.backup
 configs/*.backup
+# May contain auth tokens for the HTTP direct sink; do not commit.
+configs/logloadgen.json
 
 # Prometheus data directory (persistent time-series database)
 prometheus-data/

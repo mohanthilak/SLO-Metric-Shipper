@@ -1,0 +1,12 @@
+{
+  "tracesPerSec": 15,
+  "depth": 3,
+  "fanout": 3,
+  "durationProfile": "medium",
+  "errorRate": 0.1,
+  "serviceCount": 4,
+  "highCardAttrs": false,
+  "highCardAttrPoolSize": 10000,
+  "workers": 32,
+  "durationSec": 180
+}

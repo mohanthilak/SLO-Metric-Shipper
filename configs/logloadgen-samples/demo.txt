@@ -1,0 +1,3 @@
+2026-08-13 sample INFO first line
+2026-08-13 sample WARN second line
+2026-08-13 sample ERROR third line

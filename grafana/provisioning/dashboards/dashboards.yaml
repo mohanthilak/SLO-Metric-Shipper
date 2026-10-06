@@ -1,0 +1,14 @@
+# Load every *.json under /var/lib/grafana/dashboards as a provisioned dashboard.
+apiVersion: 1
+
+providers:
+  - name: slo-shipper
+    orgId: 1
+    folder: SLO Shipper
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -1,0 +1,59 @@
+# Loki 3.x monolithic single-binary config with MinIO/S3 chunk storage.
+# tsdb is the current recommended index type — replaces boltdb-shipper.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: info
+
+common:
+  instance_addr: 127.0.0.1
+  replication_factor: 1
+  path_prefix: /var/loki
+  storage:
+    s3:
+      endpoint: minio-lgtm:9000
+      bucketnames: loki-data
+      access_key_id: lgtmadmin
+      secret_access_key: lgtmadmin123
+      s3forcepathstyle: true
+      insecure: true       # MinIO in dev is HTTP-only
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: s3
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+# Ingester tuning — trade a little latency for less churn on the object store.
+ingester:
+  chunk_idle_period: 2m
+  chunk_target_size: 1572864       # 1.5 MiB
+  max_chunk_age: 1h
+  chunk_retain_period: 30s
+
+# Query/limits — permissive defaults appropriate for a local single-tenant setup.
+limits_config:
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  max_query_series: 100000
+  volume_enabled: true              # enables the /volume API used by newer Grafana Loki UI
+  allow_structured_metadata: true
+
+# Compactor keeps the index small over time.
+compactor:
+  working_directory: /var/loki/compactor
+  compaction_interval: 10m
+
+# Analytics phone-home — disable for local privacy.
+analytics:
+  reporting_enabled: false

@@ -1,0 +1,88 @@
+# Provisioned LGTM datasources. Runs alongside the existing prometheus.yaml
+# (so the existing dashboard keeps working). Grafana loads every *.yaml in
+# this dir at boot.
+apiVersion: 1
+
+datasources:
+  # -------- Loki (logs) --------
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      # Match your app's log body format so trace_id → Tempo works both ways.
+      # ─────────────────────────────────────────────────────────────────────
+      # TODO (contribute here!): fill in the derivedFields regex so Grafana can
+      # extract trace_id from your log lines and turn it into a clickable link.
+      # Two common cases in this repo:
+      #   1) OTLP-native logs: trace_id is a first-class field on the log record
+      #      and Grafana surfaces it automatically — no regex needed. Delete
+      #      the derivedFields block entirely if you're only using otlphttp/loki.
+      #   2) Log body is JSON with "trace_id":"…": use the pattern below.
+      #   3) Log body is syslog/logfmt: match /trace_id[=:] ?([0-9a-f]{32})/
+      #
+      # Leaving a JSON-shaped default in place; edit to match your reality.
+      derivedFields:
+        - name: TraceID
+          matcherRegex: '"trace_id"\s*:\s*"([0-9a-f]{32})"'
+          url: '${__value.raw}'
+          datasourceUid: tempo
+          urlDisplayLabel: 'View trace'
+
+  # -------- Tempo (traces) --------
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    editable: false
+    jsonData:
+      # traces → logs: click a span, open Loki filtered to that trace's labels.
+      tracesToLogsV2:
+        datasourceUid: loki
+        # Tag mapping: Grafana looks at these span attributes and copies them
+        # into Loki as label filters. service.name → service label, etc.
+        tags:
+          - key: service.name
+            value: service_name
+          - key: service.namespace
+            value: service_namespace
+        # Include the trace_id filter so a span's logs light up.
+        filterByTraceID: true
+        filterBySpanID: false
+      # traces → metrics: click a span, open Mimir with span-metrics query.
+      tracesToMetrics:
+        datasourceUid: mimir
+        # Auto-populated query when jumping from a span. $__tags is filled in
+        # from tag mapping below.
+        queries:
+          - name: Request rate for this service
+            query: 'sum(rate(traces_spanmetrics_calls_total{$__tags}[$__rate_interval]))'
+        tags:
+          - key: service.name
+            value: service
+      # Service-graph — Tempo's metrics generator exports service-graph metrics
+      # to Mimir; this tells Grafana where to fetch them from.
+      serviceMap:
+        datasourceUid: mimir
+      # Node-graph view on the trace exploration page.
+      nodeGraph:
+        enabled: true
+
+  # -------- Mimir (metrics, Prometheus-compatible) --------
+  - name: Mimir
+    uid: mimir
+    type: prometheus
+    access: proxy
+    url: http://mimir:9009/prometheus
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST
+      # exemplar → traces jump: click an exemplar dot on a metric chart, open
+      # the corresponding trace in Tempo.
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo

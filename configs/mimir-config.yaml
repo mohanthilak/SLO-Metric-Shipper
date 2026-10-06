@@ -1,0 +1,94 @@
+# Mimir monolithic mode with S3 (MinIO) backend. Speaks the Prometheus API on
+# port 9009 — both remote_write in and PromQL queries out.
+
+# All monolithic components in one process.
+target: all
+
+server:
+  http_listen_port: 9009
+  grpc_listen_port: 9095
+  log_level: info
+
+multitenancy_enabled: false          # dev-mode: one tenant, no auth
+
+common:
+  storage:
+    backend: s3
+    s3:
+      endpoint: minio-lgtm:9000
+      bucket_name: mimir-data
+      access_key_id: lgtmadmin
+      secret_access_key: lgtmadmin123
+      insecure: true
+
+blocks_storage:
+  backend: s3
+  s3:
+    endpoint: minio-lgtm:9000
+    bucket_name: mimir-data
+    access_key_id: lgtmadmin
+    secret_access_key: lgtmadmin123
+    insecure: true
+  # Explicit prefix so blocks live under "blocks/" — leaves the bucket root free
+  # for ruler/alertmanager which Mimir insists must differ from blocks storage.
+  storage_prefix: blocks
+  tsdb:
+    dir: /var/mimir/tsdb
+  bucket_store:
+    sync_dir: /var/mimir/tsdb-sync
+
+# Ruler and alertmanager both need storage distinct from blocks. Same bucket,
+# different prefix keeps things tidy without needing three MinIO buckets.
+ruler_storage:
+  backend: s3
+  s3:
+    endpoint: minio-lgtm:9000
+    bucket_name: mimir-data
+    access_key_id: lgtmadmin
+    secret_access_key: lgtmadmin123
+    insecure: true
+  storage_prefix: ruler
+
+alertmanager_storage:
+  backend: s3
+  s3:
+    endpoint: minio-lgtm:9000
+    bucket_name: mimir-data
+    access_key_id: lgtmadmin
+    secret_access_key: lgtmadmin123
+    insecure: true
+  storage_prefix: alertmanager
+
+# Ingester — the piece that buffers samples in memory before flushing to S3.
+ingester:
+  ring:
+    replication_factor: 1
+    kvstore:
+      store: memberlist
+    instance_addr: 127.0.0.1
+    num_tokens: 512
+
+memberlist:
+  join_members: []
+
+# The compactor rewrites blocks in the background so older data is queried cheaply.
+compactor:
+  data_dir: /var/mimir/compactor
+  sharding_ring:
+    kvstore:
+      store: memberlist
+
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+    kvstore:
+      store: memberlist
+
+ruler:
+  rule_path: /var/mimir/rules
+
+limits:
+  # Permissive dev defaults. Accepts spikey traffic from a synthetic generator.
+  ingestion_rate: 100000
+  ingestion_burst_size: 200000
+  max_global_series_per_user: 1000000

@@ -397,6 +397,172 @@
             font-family: monospace;
             font-size: 0.95em;
         }
+
+        /* Synthetic Log Generation */
+        .lg-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px 16px;
+            margin: 16px 0;
+        }
+        .lg-grid label {
+            display: flex;
+            flex-direction: column;
+            font-size: 0.85em;
+            color: #555;
+            gap: 4px;
+        }
+        .lg-grid input, .lg-grid select, .lg-grid textarea {
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.95em;
+            font-family: inherit;
+        }
+        .lg-grid textarea {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 0.85em;
+            resize: vertical;
+            min-height: 60px;
+        }
+        .lg-warn {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+            padding: 10px 14px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            margin: 8px 0 16px 0;
+        }
+        .lg-running {
+            color: #28a745;
+            font-weight: 600;
+            margin-left: 12px;
+            animation: lg-pulse 1.4s infinite;
+        }
+        @keyframes lg-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .lg-totals {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin: 20px 0;
+        }
+        .lg-stat {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 12px 16px;
+        }
+        .lg-stat-label {
+            font-size: 0.8em;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .lg-stat-val {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #333;
+            margin-top: 4px;
+            font-variant-numeric: tabular-nums;
+        }
+        .lg-chart-wrap {
+            position: relative;
+            width: 100%;
+            height: 220px;
+            margin-bottom: 16px;
+        }
+        .lg-chart-fallback {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 6px;
+            padding: 12px 16px;
+            font-size: 0.9em;
+            margin: 8px 0;
+        }
+        .lg-chart-fallback code {
+            background: rgba(0,0,0,0.08);
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        .mg-kinds {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 16px;
+            padding: 6px 0;
+        }
+        .mg-kinds label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85em;
+            color: #333;
+            font-weight: normal;
+        }
+        .mg-kinds input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+        }
+        .lg-replay-row {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        /* ================= Tab navigation ================= */
+        .tabs {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #fff;
+            display: flex;
+            gap: 4px;
+            padding: 8px 8px 0 8px;
+            border-radius: 8px 8px 0 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+        .tab {
+            padding: 10px 18px;
+            border-radius: 6px 6px 0 0;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 0.95em;
+            font-weight: 500;
+            color: #555;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .tab:hover {
+            background: #f0f0f0;
+            color: #222;
+        }
+        .tab.active {
+            color: #0d6efd;
+            border-bottom-color: #0d6efd;
+        }
+        .tab .tab-icon {
+            margin-right: 6px;
+        }
+        .tab-panel {
+            display: none;
+        }
+        .tab-panel.active {
+            display: block;
+        }
+        /* Overrides: when the endpoints panel is active, restore its as-block behavior. */
+        #endpoints.tab-panel.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -404,10 +570,205 @@
         <h1>SLO Metric Generator</h1>
         <p class="subtitle">Configure status code distribution and generate load for each endpoint</p>
 
-        <div id="endpoints"></div>
+        <nav class="tabs" role="tablist" aria-label="Sections">
+            <button class="tab active" data-tab-target="endpoints" role="tab"><span class="tab-icon">🎯</span>Endpoints</button>
+            <button class="tab" data-tab-target="logs" role="tab"><span class="tab-icon">📄</span>Logs</button>
+            <button class="tab" data-tab-target="metrics" role="tab"><span class="tab-icon">📊</span>Metrics</button>
+            <button class="tab" data-tab-target="traces" role="tab"><span class="tab-icon">🔗</span>Traces</button>
+            <button class="tab" data-tab-target="config" role="tab"><span class="tab-icon">⚙️</span>OTel Config</button>
+        </nav>
+
+        <div id="endpoints" class="tab-panel active" data-tab="endpoints"></div>
+
+        <!-- Synthetic Log Generation -->
+        <div class="config-card tab-panel" id="logloadgen-card" data-tab="logs">
+            <div class="config-header">
+                <div class="config-title">Synthetic Log Generation</div>
+                <div class="config-description">Emit log records directly at a chosen rate, size, and wire format. Use this to exercise the downstream log-ingest platform.</div>
+            </div>
+
+            <div class="lg-grid">
+                <label>Rate (logs/sec)
+                    <input type="number" id="lg-rate" min="1" max="200000" value="1000">
+                </label>
+                <label>Size per log (bytes)
+                    <input type="number" id="lg-bytes" min="64" max="1048576" value="512">
+                </label>
+                <label>Format
+                    <select id="lg-format"></select>
+                </label>
+                <label>Sink
+                    <select id="lg-sink"></select>
+                </label>
+                <label id="lg-target-wrap" style="display:none;">Target (host:port or URL)
+                    <input type="text" id="lg-target" placeholder="127.0.0.1:5000">
+                </label>
+                <label id="lg-headers-wrap" style="display:none; grid-column: 1 / -1;">Headers (one per line, HTTP only) — <code>Key: Value</code>
+                    <textarea id="lg-headers" rows="3" placeholder="Authorization: Bearer eyJ...&#10;X-Api-Key: abc123&#10;Content-Type: application/x-ndjson"></textarea>
+                </label>
+                <label id="lg-replay-wrap" style="display:none; grid-column: 1 / -1;">Upload a new replay sample (name + textarea, or file picker)
+                    <div class="lg-replay-row">
+                        <input type="text" id="lg-replay-name" placeholder="sample-name" style="max-width:200px;">
+                        <textarea id="lg-replay-content" rows="4" placeholder="paste log lines here — one per line — then click Save. Each line is emitted in order, looping when done."></textarea>
+                        <div style="display:flex; gap:8px;">
+                            <input type="file" id="lg-replay-file" accept=".txt,.log">
+                            <button type="button" class="btn btn-secondary" onclick="uploadReplaySample()">Save sample</button>
+                        </div>
+                    </div>
+                </label>
+                <label>Workers (0 = auto)
+                    <input type="number" id="lg-workers" min="0" max="256" value="0">
+                </label>
+                <label>Duration (sec, 0 = until stopped)
+                    <input type="number" id="lg-duration" min="0" value="0">
+                </label>
+            </div>
+
+            <div id="lg-warn" class="lg-warn" style="display:none;">
+                ⚠️ OTLP wraps your record in the OTLP envelope — the downstream sees OTLP, not raw <span id="lg-warn-fmt"></span>. For wire-faithful testing choose a Direct sink.
+            </div>
+
+            <div class="config-actions">
+                <button class="btn btn-primary" id="lg-start-btn" onclick="startLogGen()">▶ Start</button>
+                <button class="btn btn-secondary" id="lg-stop-btn" onclick="stopLogGen()" disabled>■ Stop</button>
+                <span id="lg-running" class="lg-running" style="display:none;">● running</span>
+            </div>
+
+            <div class="lg-totals">
+                <div class="lg-stat"><div class="lg-stat-label">Logs sent</div><div class="lg-stat-val" id="lg-total-logs">0</div></div>
+                <div class="lg-stat"><div class="lg-stat-label">Bytes sent</div><div class="lg-stat-val" id="lg-total-bytes">0 B</div></div>
+                <div class="lg-stat"><div class="lg-stat-label">Errors</div><div class="lg-stat-val" id="lg-total-errors">0</div></div>
+                <div class="lg-stat"><div class="lg-stat-label">Elapsed</div><div class="lg-stat-val" id="lg-total-elapsed">0s</div></div>
+            </div>
+
+            <div class="lg-chart-wrap"><canvas id="lg-chart-rps"></canvas></div>
+            <div class="lg-chart-wrap"><canvas id="lg-chart-mbs"></canvas></div>
+            <div id="lg-chart-fallback" class="lg-chart-fallback" style="display:none;">
+                Charts unavailable — Chart.js failed to load from <code>/static/vendor/chart.min.js</code>. Rebuild the container so <code>static/</code> is refreshed, or open DevTools → Network to see the actual error. Totals and API still work.
+            </div>
+        </div>
+
+        <!-- Synthetic Metric Generation -->
+        <div class="config-card tab-panel" id="metricloadgen-card" data-tab="metrics">
+            <div class="config-header">
+                <div class="config-title">Synthetic Metric Generation</div>
+                <div class="config-description">
+                    Emit metrics of every OTel instrument kind on demand. The cardinality knob + strategy
+                    is a playground for reproducing TSDB failure modes — 1M+ series with churning is the
+                    pattern that most badly hurts Prometheus/Mimir.
+                </div>
+            </div>
+
+            <div class="lg-grid">
+                <label>Rate (points/sec, sync kinds)
+                    <input type="number" id="mg-rate" min="1" max="500000" value="500">
+                </label>
+                <label>Cardinality (unique series pool)
+                    <input type="number" id="mg-card" min="1" max="10000000" value="1000">
+                </label>
+                <label>Cardinality strategy
+                    <select id="mg-strategy"></select>
+                </label>
+                <label id="mg-churn-interval-wrap" style="display:none;">Churn interval (sec)
+                    <input type="number" id="mg-churn-interval" min="1" value="30">
+                </label>
+                <label id="mg-churn-fraction-wrap" style="display:none;">Churn fraction (0-1)
+                    <input type="number" id="mg-churn-fraction" min="0.01" max="1" step="0.05" value="0.1">
+                </label>
+                <label>Histogram distribution
+                    <select id="mg-histdist"></select>
+                </label>
+                <label>Workers (0 = auto)
+                    <input type="number" id="mg-workers" min="0" max="256" value="0">
+                </label>
+                <label>Duration (sec, 0 = until stopped)
+                    <input type="number" id="mg-duration" min="0" value="0">
+                </label>
+                <label style="grid-column: 1 / -1;">Instrument kinds (leave empty = all 7)
+                    <div id="mg-kinds" class="mg-kinds"></div>
+                </label>
+            </div>
+
+            <div class="config-actions">
+                <button class="btn btn-primary" id="mg-start-btn" onclick="startMetricGen()">▶ Start</button>
+                <button class="btn btn-secondary" id="mg-stop-btn" onclick="stopMetricGen()" disabled>■ Stop</button>
+                <span id="mg-running" class="lg-running" style="display:none;">● running</span>
+            </div>
+
+            <div class="lg-totals">
+                <div class="lg-stat"><div class="lg-stat-label">Points emitted</div><div class="lg-stat-val" id="mg-total-points">0</div></div>
+                <div class="lg-stat"><div class="lg-stat-label">Unique series</div><div class="lg-stat-val" id="mg-total-series">0</div></div>
+                <div class="lg-stat"><div class="lg-stat-label">Errors</div><div class="lg-stat-val" id="mg-total-errors">0</div></div>
+                <div class="lg-stat"><div class="lg-stat-label">Elapsed</div><div class="lg-stat-val" id="mg-total-elapsed">0s</div></div>
+            </div>
+
+            <div class="lg-chart-wrap"><canvas id="mg-chart-pps"></canvas></div>
+        </div>
+
+        <!-- Synthetic Trace Generation -->
+        <div class="config-card tab-panel" id="traceloadgen-card" data-tab="traces">
+            <div class="config-header">
+                <div class="config-title">Synthetic Trace Generation</div>
+                <div class="config-description">
+                    Emit multi-service trace trees at a configurable rate/depth/fanout. Each simulated
+                    service gets its own <code>service.name</code> resource so Tempo's span-metrics and
+                    service-graph pipelines see realistic cross-service edges. High-card attrs are the
+                    trace analog of metric cardinality explosion.
+                </div>
+            </div>
+
+            <div class="lg-grid">
+                <label>Traces per second
+                    <input type="number" id="tg-tps" min="1" max="5000" value="20">
+                </label>
+                <label>Depth (span tree levels)
+                    <input type="number" id="tg-depth" min="1" max="10" value="3">
+                </label>
+                <label>Fanout (children per span)
+                    <input type="number" id="tg-fanout" min="1" max="20" value="3">
+                </label>
+                <label>Duration profile
+                    <select id="tg-duration-profile"></select>
+                </label>
+                <label>Error rate (0-1)
+                    <input type="number" id="tg-error-rate" min="0" max="1" step="0.05" value="0.05">
+                </label>
+                <label>Simulated services
+                    <input type="number" id="tg-services" min="1" max="20" value="3">
+                </label>
+                <label>Workers (0 = auto)
+                    <input type="number" id="tg-workers" min="0" max="256" value="0">
+                </label>
+                <label>Duration (sec, 0 = until stopped)
+                    <input type="number" id="tg-duration" min="0" value="0">
+                </label>
+                <label style="grid-column: 1 / -1;">
+                    <input type="checkbox" id="tg-highcard"> Add high-cardinality attrs (user.id, request.id) — <em>the trace-side pain button</em>
+                </label>
+                <label id="tg-highcard-pool-wrap" style="display:none;">High-card pool size
+                    <input type="number" id="tg-highcard-pool" min="10" max="1000000" value="10000">
+                </label>
+            </div>
+
+            <div class="config-actions">
+                <button class="btn btn-primary" id="tg-start-btn" onclick="startTraceGen()">▶ Start</button>
+                <button class="btn btn-secondary" id="tg-stop-btn" onclick="stopTraceGen()" disabled>■ Stop</button>
+                <span id="tg-running" class="lg-running" style="display:none;">● running</span>
+                <span id="tg-spans-per-trace" style="margin-left:12px; color:#666; font-size:0.9em;"></span>
+            </div>
+
+            <div class="lg-totals">
+                <div class="lg-stat"><div class="lg-stat-label">Traces emitted</div><div class="lg-stat-val" id="tg-total-traces">0</div></div>
+                <div class="lg-stat"><div class="lg-stat-label">Spans emitted</div><div class="lg-stat-val" id="tg-total-spans">0</div></div>
+                <div class="lg-stat"><div class="lg-stat-label">Errors</div><div class="lg-stat-val" id="tg-total-errors">0</div></div>
+                <div class="lg-stat"><div class="lg-stat-label">Elapsed</div><div class="lg-stat-val" id="tg-total-elapsed">0s</div></div>
+            </div>
+
+            <div class="lg-chart-wrap"><canvas id="tg-chart-tps"></canvas></div>
+        </div>
 
         <!-- OpenTelemetry Collector Configuration Editor -->
-        <div class="config-card">
+        <div class="config-card tab-panel" data-tab="config">
             <div class="config-header">
                 <div class="config-title">OpenTelemetry Collector Configuration</div>
                 <div class="config-description">Edit the OTel Collector configuration in real-time. Changes will restart the collector automatically.</div>
@@ -435,6 +796,8 @@
 
     <!-- Monaco Editor from CDN -->
     <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <!-- Chart.js — self-hosted from static/vendor to avoid CDN dependencies. -->
+    <script src="/static/vendor/chart.min.js"></script>
 
     <script>
         let endpoints = {};
@@ -963,19 +1326,813 @@
             showStatus('Configuration reset to last saved version', 'success');
         }
 
+        // ============================================================
+        // Tab navigation — defined BEFORE the boot calls below because
+        // initTabs() reads the TAB_IDS `const`, which lives in the temporal
+        // dead zone until this line executes. Calling initTabs() above the
+        // const declaration throws ReferenceError and silently kills the
+        // whole tab controller.
+        // ============================================================
+        // Uses the URL hash so a page reload lands on the same tab, and so
+        // Grafana/other tools can link to a specific tab. Background polling
+        // for every generator keeps running when its tab is hidden, so the
+        // stats+chart on that tab is already up-to-date when you switch back.
+        const TAB_IDS = ['endpoints', 'logs', 'metrics', 'traces', 'config'];
+
         // Initialize on page load
         loadConfig();
         initMonacoEditor();
+        initLogGen();
+        initMetricGen();
+        initTraceGen();
+        initTabs();
+
+        function initTabs() {
+            document.querySelectorAll('.tab').forEach(btn => {
+                btn.addEventListener('click', () => activateTab(btn.dataset.tabTarget));
+            });
+            window.addEventListener('hashchange', () => activateTab(currentTabFromHash()));
+            activateTab(currentTabFromHash());
+        }
+
+        function currentTabFromHash() {
+            const h = (location.hash || '').replace(/^#/, '');
+            return TAB_IDS.includes(h) ? h : 'endpoints';
+        }
+
+        function activateTab(target) {
+            if (!TAB_IDS.includes(target)) target = 'endpoints';
+            document.querySelectorAll('.tab').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tabTarget === target);
+                btn.setAttribute('aria-selected', btn.dataset.tabTarget === target ? 'true' : 'false');
+            });
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.toggle('active', panel.dataset.tab === target);
+            });
+            // Reflect in URL without adding a history entry (so back-button UX is not spammed).
+            if (location.hash.replace(/^#/, '') !== target) {
+                history.replaceState(null, '', '#' + target);
+            }
+            // If switching to a tab whose chart was created after this tab was
+            // first hidden, Chart.js may have taken a 0×0 measurement — nudge
+            // the chart to resize now that the panel has real dimensions.
+            setTimeout(() => {
+                if (target === 'logs') { rpsChart?.resize(); mbsChart?.resize(); }
+                if (target === 'metrics') { ppsChart?.resize(); }
+                if (target === 'traces') { tpsChart?.resize(); }
+                if (target === 'config' && monacoEditor) { monacoEditor.layout(); }
+            }, 50);
+        }
 
         // Cleanup on page unload
         window.addEventListener('beforeunload', () => {
             if (statsRefreshInterval) {
                 clearInterval(statsRefreshInterval);
             }
+            if (logGenRefreshInterval) {
+                clearInterval(logGenRefreshInterval);
+            }
             if (monacoEditor) {
                 monacoEditor.dispose();
             }
         });
+
+        // ============================================================
+        // Synthetic Log Generation
+        // ============================================================
+        let logGenRefreshInterval = null;
+        let logGenMeta = { formats: [], sinks: [] };
+        let rpsChart = null;
+        let mbsChart = null;
+
+        async function initLogGen() {
+            // Populate format/sink dropdowns from server metadata.
+            try {
+                const resp = await fetch('/admin/api/logloadgen/meta');
+                logGenMeta = await resp.json();
+            } catch (e) {
+                console.error('logloadgen meta:', e);
+                return;
+            }
+
+            const fmtSel = document.getElementById('lg-format');
+            const sinkSel = document.getElementById('lg-sink');
+            // Base formats + replay:<name> entries for every persisted sample.
+            const formatOpts = logGenMeta.formats.map(f => `<option value="${f.key}">${f.label}</option>`);
+            (logGenMeta.replaySamples || []).forEach(s => {
+                formatOpts.push(`<option value="replay:${s}">Replay: ${s} (from file)</option>`);
+            });
+            // Always add an "Upload/create new sample" pseudo-option that reveals the sample-upload panel.
+            formatOpts.push('<option value="__new_replay__">＋ Upload new replay sample…</option>');
+            fmtSel.innerHTML = formatOpts.join('');
+            sinkSel.innerHTML = logGenMeta.sinks.map(s => `<option value="${s.key}" data-needs-target="${s.needsTarget}">${s.label}</option>`).join('');
+
+            sinkSel.addEventListener('change', updateLogGenSinkVisibility);
+            fmtSel.addEventListener('change', updateLogGenSinkVisibility);
+            updateLogGenSinkVisibility();
+
+            // Poll once BEFORE chart init so the button/running-indicator state syncs
+            // even if Chart.js fails to load (renderLogGenStats guards its chart access).
+            await refreshLogGenStats();
+            startLogGenPolling();
+
+            let chartStage = 'checking Chart global';
+            try {
+                if (typeof Chart === 'undefined') {
+                    // The <script src> tag didn't execute — commonly ad-blocker or privacy
+                    // extension heuristics on filenames like "chart.min.js". Ad blockers
+                    // usually let same-origin fetch() through, so pull the file ourselves
+                    // and evaluate it in the global scope. This lands `Chart` on window
+                    // exactly like the script tag would have.
+                    chartStage = 'fetch fallback';
+                    const resp = await fetch('/static/vendor/chart.min.js', {cache: 'no-cache'});
+                    if (!resp.ok) {
+                        throw new Error(`fetch returned ${resp.status} ${resp.statusText}`);
+                    }
+                    const src = await resp.text();
+                    if (src.length < 10000) {
+                        throw new Error(`fetch returned only ${src.length} bytes — likely a blocker returned a stub`);
+                    }
+                    // Some browser extensions inject `module`, `exports`, or `define`
+                    // globals on every page. Chart.js's UMD wrapper then chooses the
+                    // CommonJS/AMD branch and never assigns to window.Chart. Shim them
+                    // out for the duration of the eval, then restore.
+                    chartStage = 'UMD-shimmed eval';
+                    const saved = {
+                        module:  window.module,
+                        exports: window.exports,
+                        define:  window.define,
+                    };
+                    let evalErr = null;
+                    try {
+                        try { window.module  = undefined; } catch (_) {}
+                        try { window.exports = undefined; } catch (_) {}
+                        try { window.define  = undefined; } catch (_) {}
+                        // (0, eval) forces indirect eval → executes at global scope so
+                        // Chart binds to window rather than this function's scope.
+                        (0, eval)(src);
+                    } catch (ee) {
+                        evalErr = ee;
+                    } finally {
+                        // Restore whatever was there before.
+                        try { window.module  = saved.module; }  catch (_) {}
+                        try { window.exports = saved.exports; } catch (_) {}
+                        try { window.define  = saved.define; }  catch (_) {}
+                    }
+                    if (evalErr) throw new Error('eval threw: ' + evalErr.message);
+
+                    // Sometimes Chart binds elsewhere; try to recover it.
+                    if (typeof Chart === 'undefined') {
+                        if (window.Chart) { /* already there via property */ }
+                        else if (saved.exports && typeof saved.exports === 'object' && saved.exports.Chart) {
+                            window.Chart = saved.exports.Chart;
+                        } else if (saved.module && saved.module.exports && saved.module.exports.Chart) {
+                            window.Chart = saved.module.exports.Chart;
+                        }
+                    }
+                    if (typeof Chart === 'undefined') {
+                        // Last-resort diagnostic: what chart-ish globals did land?
+                        const chartish = Object.keys(window).filter(k => /chart/i.test(k)).slice(0, 6);
+                        throw new Error('manual eval completed but Chart still undefined. window keys matching /chart/i: ' + (chartish.length ? chartish.join(', ') : '(none)') + '. An extension may be actively stripping the global — try disabling extensions or use a different browser profile.');
+                    }
+                    console.info('Chart.js loaded via UMD-shimmed fetch fallback (script tag was blocked, likely by an extension).');
+                }
+                chartStage = 'initLogCharts()';
+                initLogCharts();
+                chartStage = 'first stats repaint';
+                await refreshLogGenStats();
+            } catch (e) {
+                console.warn(`Chart.js unavailable at [${chartStage}] — charts disabled but stats still update:`, e);
+                document.querySelectorAll('.lg-chart-wrap').forEach(el => el.style.display = 'none');
+                const fb = document.getElementById('lg-chart-fallback');
+                fb.style.display = '';
+                // Surface the actual error so the operator doesn't have to open DevTools.
+                const detail = document.createElement('div');
+                detail.style.marginTop = '8px';
+                detail.style.fontFamily = 'ui-monospace, monospace';
+                detail.style.fontSize = '0.85em';
+                detail.textContent = `Stage: ${chartStage}   Error: ${e.message}`;
+                fb.appendChild(detail);
+            }
+        }
+
+        function updateLogGenSinkVisibility() {
+            const sinkSel = document.getElementById('lg-sink');
+            const opt = sinkSel.options[sinkSel.selectedIndex];
+            const needsTarget = opt && opt.getAttribute('data-needs-target') === 'true';
+            const isHTTP = sinkSel.value === 'http';
+            const isNewReplay = document.getElementById('lg-format').value === '__new_replay__';
+            document.getElementById('lg-target-wrap').style.display = needsTarget ? '' : 'none';
+            document.getElementById('lg-headers-wrap').style.display = isHTTP ? '' : 'none';
+            document.getElementById('lg-replay-wrap').style.display = isNewReplay ? '' : 'none';
+
+            // Show the OTLP-vs-format-faithfulness warning only when sink=otlp.
+            const warn = document.getElementById('lg-warn');
+            if (!needsTarget) {
+                document.getElementById('lg-warn-fmt').textContent =
+                    document.getElementById('lg-format').selectedOptions[0]?.text || 'the chosen format';
+                warn.style.display = '';
+            } else {
+                warn.style.display = 'none';
+            }
+        }
+
+        function initLogCharts() {
+            const commonOpts = (yLabel) => ({
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: { legend: { position: 'top' } },
+                scales: {
+                    x: { display: true, ticks: { maxTicksLimit: 8 } },
+                    y: { display: true, title: { display: true, text: yLabel }, beginAtZero: true },
+                },
+            });
+
+            rpsChart = new Chart(document.getElementById('lg-chart-rps'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Achieved (logs/s)', data: [], borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.1)', tension: 0.25, pointRadius: 0 },
+                        { label: 'Target (logs/s)',   data: [], borderColor: '#6c757d', borderDash: [6, 6], tension: 0, pointRadius: 0 },
+                        { label: 'Errors (in bucket)', data: [], borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,0.1)', tension: 0, pointRadius: 0, yAxisID: 'yErr' },
+                    ],
+                },
+                options: {
+                    ...commonOpts('logs/sec'),
+                    scales: {
+                        x: { display: true, ticks: { maxTicksLimit: 8 } },
+                        y: { display: true, title: { display: true, text: 'logs/sec' }, beginAtZero: true },
+                        yErr: { display: true, position: 'right', title: { display: true, text: 'errors' }, beginAtZero: true, grid: { drawOnChartArea: false } },
+                    },
+                },
+            });
+
+            mbsChart = new Chart(document.getElementById('lg-chart-mbs'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Throughput (MB/s)', data: [], borderColor: '#20c997', backgroundColor: 'rgba(32,201,151,0.15)', tension: 0.25, pointRadius: 0, fill: true },
+                    ],
+                },
+                options: commonOpts('MB/sec'),
+            });
+        }
+
+        function startLogGenPolling() {
+            if (logGenRefreshInterval) return;
+            logGenRefreshInterval = setInterval(refreshLogGenStats, 1000);
+        }
+        function stopLogGenPolling() {
+            if (logGenRefreshInterval) {
+                clearInterval(logGenRefreshInterval);
+                logGenRefreshInterval = null;
+            }
+        }
+
+        async function refreshLogGenStats() {
+            try {
+                const resp = await fetch('/admin/api/logloadgen/stats');
+                if (!resp.ok) return;
+                const stats = await resp.json();
+                renderLogGenStats(stats);
+            } catch (e) {
+                console.error('logloadgen stats:', e);
+            }
+        }
+
+        function humanBytes(n) {
+            const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+            let i = 0;
+            while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+            return (n < 10 ? n.toFixed(2) : n.toFixed(1)) + ' ' + units[i];
+        }
+
+        function renderLogGenStats(stats) {
+            document.getElementById('lg-total-logs').textContent = (stats.logsSent || 0).toLocaleString();
+            document.getElementById('lg-total-bytes').textContent = humanBytes(stats.bytesSent || 0);
+            document.getElementById('lg-total-errors').textContent = (stats.errors || 0).toLocaleString();
+            document.getElementById('lg-total-elapsed').textContent = Math.round(stats.elapsedSeconds || 0) + 's';
+
+            const running = !!stats.isRunning;
+            document.getElementById('lg-running').style.display = running ? '' : 'none';
+            document.getElementById('lg-start-btn').disabled = running;
+            document.getElementById('lg-stop-btn').disabled = !running;
+            ['lg-rate','lg-bytes','lg-format','lg-sink','lg-target','lg-headers','lg-workers','lg-duration'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = running;
+            });
+
+            // Hydrate form from the server so a page reload while a job is running (or
+            // just finished — the frozen snapshot has the same fields) shows the real
+            // config instead of the HTML defaults. Header values are returned redacted
+            // as "***" so the operator can see which keys are attached without leaking
+            // the token they set.
+            if (stats.sink) {
+                hydrateLogGenForm(stats);
+            }
+
+            // Chart data update (guarded — charts may not exist if Chart.js failed).
+            const series = stats.series || [];
+            const labels = series.map(p => new Date(p.t).toLocaleTimeString([], { hour12: false }));
+            if (rpsChart) {
+                rpsChart.data.labels = labels;
+                rpsChart.data.datasets[0].data = series.map(p => p.achievedRps);
+                rpsChart.data.datasets[1].data = series.map(p => p.targetRps);
+                rpsChart.data.datasets[2].data = series.map(p => p.errors);
+                rpsChart.update('none');
+            }
+            if (mbsChart) {
+                mbsChart.data.labels = labels;
+                mbsChart.data.datasets[0].data = series.map(p => p.throughputMBs);
+                mbsChart.update('none');
+            }
+        }
+
+        // Whether hydration has already run for the current job. We restore fields on
+        // first sight of a running/frozen job, then leave them alone so the user can
+        // type into them freely for the next Start.
+        let logGenHydratedFor = null;
+
+        function hydrateLogGenForm(stats) {
+            // Reset the "hydrated" guard when the sink changes (a fresh Start).
+            if (logGenHydratedFor && logGenHydratedFor !== stats.sink) {
+                logGenHydratedFor = null;
+            }
+            if (logGenHydratedFor === stats.sink) return;
+            logGenHydratedFor = stats.sink;
+
+            if (stats.ratePerSec)  document.getElementById('lg-rate').value    = stats.ratePerSec;
+            if (stats.bytesPerLog) document.getElementById('lg-bytes').value   = stats.bytesPerLog;
+            if (stats.format)      document.getElementById('lg-format').value  = stats.format;
+            document.getElementById('lg-sink').value    = stats.sink;
+            document.getElementById('lg-target').value  = stats.sinkTarget || '';
+            document.getElementById('lg-workers').value = stats.workers || 0;
+            document.getElementById('lg-duration').value = stats.durationSec || 0;
+
+            // Headers textarea: rebuild "Key: ***" lines. Empty out first so a job with
+            // no headers wipes any stale text.
+            const headers = stats.sinkHeaders || {};
+            const lines = Object.keys(headers).sort().map(k => `${k}: ${headers[k]}`);
+            document.getElementById('lg-headers').value = lines.join('\n');
+
+            updateLogGenSinkVisibility();
+        }
+
+        async function uploadReplaySample() {
+            const nameEl = document.getElementById('lg-replay-name');
+            const contentEl = document.getElementById('lg-replay-content');
+            const fileEl = document.getElementById('lg-replay-file');
+            const name = (nameEl.value || '').trim();
+            if (!name) { showStatus('Sample name required', 'error'); return; }
+
+            let body, headers;
+            if (fileEl.files && fileEl.files[0]) {
+                // Multipart upload for files.
+                const fd = new FormData();
+                fd.append('name', name);
+                fd.append('file', fileEl.files[0]);
+                body = fd; headers = {};
+            } else {
+                const content = contentEl.value || '';
+                if (!content.trim()) { showStatus('Paste content or pick a file', 'error'); return; }
+                body = JSON.stringify({ name, content });
+                headers = { 'Content-Type': 'application/json' };
+            }
+            try {
+                const resp = await fetch('/admin/api/logloadgen/samples', { method: 'POST', headers, body });
+                if (!resp.ok) { showStatus('Save failed: ' + await resp.text(), 'error'); return; }
+                const r = await resp.json();
+                showStatus(`Saved sample "${r.name}" (${r.bytes} bytes) — reloading formats…`, 'success');
+                // Re-fetch meta so the new "replay:<name>" option appears in the format dropdown.
+                const metaResp = await fetch('/admin/api/logloadgen/meta');
+                logGenMeta = await metaResp.json();
+                const currentFmt = document.getElementById('lg-format').value;
+                populateLogGenFormats();
+                // Auto-select the new sample so the operator can immediately Start.
+                document.getElementById('lg-format').value = 'replay:' + r.name;
+                updateLogGenSinkVisibility();
+            } catch (e) {
+                showStatus(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        function populateLogGenFormats() {
+            const fmtSel = document.getElementById('lg-format');
+            const formatOpts = logGenMeta.formats.map(f => `<option value="${f.key}">${f.label}</option>`);
+            (logGenMeta.replaySamples || []).forEach(s => {
+                formatOpts.push(`<option value="replay:${s}">Replay: ${s} (from file)</option>`);
+            });
+            formatOpts.push('<option value="__new_replay__">＋ Upload new replay sample…</option>');
+            fmtSel.innerHTML = formatOpts.join('');
+        }
+
+        async function startLogGen() {
+            if (document.getElementById('lg-format').value === '__new_replay__') {
+                showStatus('Save the sample first, then it appears in the format dropdown', 'error');
+                return;
+            }
+            const body = {
+                ratePerSec:   parseInt(document.getElementById('lg-rate').value, 10),
+                bytesPerLog:  parseInt(document.getElementById('lg-bytes').value, 10),
+                format:       document.getElementById('lg-format').value,
+                sink:         document.getElementById('lg-sink').value,
+                sinkTarget:   document.getElementById('lg-target').value,
+                workers:      parseInt(document.getElementById('lg-workers').value, 10) || 0,
+                durationSec:  parseInt(document.getElementById('lg-duration').value, 10) || 0,
+            };
+            // Parse header textarea (HTTP direct only). One "Key: Value" per line;
+            // blank lines and lines without a colon are ignored. Values equal to "***"
+            // are the redacted placeholders returned by /stats — the server substitutes
+            // them from the last-persisted config, so we send them through untouched.
+            if (body.sink === 'http') {
+                const raw = document.getElementById('lg-headers').value || '';
+                const headers = {};
+                for (const line of raw.split('\n')) {
+                    const t = line.trim();
+                    if (!t) continue;
+                    const idx = t.indexOf(':');
+                    if (idx <= 0) continue;
+                    const k = t.slice(0, idx).trim();
+                    const v = t.slice(idx + 1).trim();
+                    if (k) headers[k] = v;
+                }
+                if (Object.keys(headers).length) body.sinkHeaders = headers;
+            }
+            try {
+                const resp = await fetch('/admin/api/logloadgen/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (!resp.ok) {
+                    const txt = await resp.text();
+                    showStatus(`Failed to start log gen: ${txt}`, 'error');
+                    return;
+                }
+                showStatus('Synthetic log generation started', 'success');
+                await refreshLogGenStats();
+            } catch (e) {
+                showStatus(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        async function stopLogGen() {
+            try {
+                const resp = await fetch('/admin/api/logloadgen/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}',
+                });
+                if (!resp.ok) {
+                    const txt = await resp.text();
+                    showStatus(`Failed to stop log gen: ${txt}`, 'error');
+                    return;
+                }
+                showStatus('Synthetic log generation stopped', 'success');
+                await refreshLogGenStats();
+            } catch (e) {
+                showStatus(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        // ============================================================
+        // Synthetic Metric Generation
+        // ============================================================
+        let metricGenRefreshInterval = null;
+        let metricGenMeta = { kinds: [], cardStrategies: [], histogramDists: [] };
+        let ppsChart = null;
+        let metricGenHydratedFor = null;
+
+        async function initMetricGen() {
+            try {
+                const resp = await fetch('/admin/api/metricloadgen/meta');
+                metricGenMeta = await resp.json();
+            } catch (e) {
+                console.error('metricloadgen meta:', e);
+                return;
+            }
+            populateMetricGenControls();
+            document.getElementById('mg-strategy').addEventListener('change', updateMetricGenChurnVisibility);
+            updateMetricGenChurnVisibility();
+
+            await refreshMetricGenStats();
+            startMetricGenPolling();
+
+            try {
+                if (typeof Chart === 'undefined') throw new Error('Chart.js unavailable');
+                initMetricGenChart();
+                await refreshMetricGenStats();
+            } catch (e) {
+                console.warn('metric-gen chart disabled:', e.message);
+            }
+        }
+
+        function populateMetricGenControls() {
+            const kindsDiv = document.getElementById('mg-kinds');
+            kindsDiv.innerHTML = metricGenMeta.kinds.map(k =>
+                `<label><input type="checkbox" value="${k.key}" checked> ${k.label}</label>`
+            ).join('');
+
+            const strat = document.getElementById('mg-strategy');
+            strat.innerHTML = metricGenMeta.cardStrategies.map(s =>
+                `<option value="${s}">${s}</option>`
+            ).join('');
+
+            const hd = document.getElementById('mg-histdist');
+            hd.innerHTML = metricGenMeta.histogramDists.map(d =>
+                `<option value="${d}">${d}</option>`
+            ).join('');
+        }
+
+        function updateMetricGenChurnVisibility() {
+            const isChurn = document.getElementById('mg-strategy').value === 'churning';
+            document.getElementById('mg-churn-interval-wrap').style.display = isChurn ? '' : 'none';
+            document.getElementById('mg-churn-fraction-wrap').style.display = isChurn ? '' : 'none';
+        }
+
+        function initMetricGenChart() {
+            ppsChart = new Chart(document.getElementById('mg-chart-pps'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Achieved (points/s)', data: [], borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.1)', tension: 0.25, pointRadius: 0 },
+                        { label: 'Target (points/s)', data: [], borderColor: '#6c757d', borderDash: [6,6], tension: 0, pointRadius: 0 },
+                    ],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: {
+                        x: { display: true, ticks: { maxTicksLimit: 8 } },
+                        y: { display: true, title: { display: true, text: 'points/sec' }, beginAtZero: true },
+                    },
+                },
+            });
+        }
+
+        function startMetricGenPolling() {
+            if (metricGenRefreshInterval) return;
+            metricGenRefreshInterval = setInterval(refreshMetricGenStats, 1000);
+        }
+
+        async function refreshMetricGenStats() {
+            try {
+                const resp = await fetch('/admin/api/metricloadgen/stats');
+                if (!resp.ok) return;
+                const stats = await resp.json();
+                renderMetricGenStats(stats);
+            } catch (e) {
+                console.error('metricloadgen stats:', e);
+            }
+        }
+
+        function renderMetricGenStats(stats) {
+            document.getElementById('mg-total-points').textContent = (stats.pointsEmitted || 0).toLocaleString();
+            document.getElementById('mg-total-series').textContent = (stats.uniqueSeries || 0).toLocaleString();
+            document.getElementById('mg-total-errors').textContent = (stats.errors || 0).toLocaleString();
+            document.getElementById('mg-total-elapsed').textContent = Math.round(stats.elapsedSeconds || 0) + 's';
+
+            const running = !!stats.isRunning;
+            document.getElementById('mg-running').style.display = running ? '' : 'none';
+            document.getElementById('mg-start-btn').disabled = running;
+            document.getElementById('mg-stop-btn').disabled = !running;
+            ['mg-rate','mg-card','mg-strategy','mg-churn-interval','mg-churn-fraction','mg-histdist','mg-workers','mg-duration'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = running;
+            });
+            document.querySelectorAll('#mg-kinds input').forEach(el => el.disabled = running);
+
+            if (stats.ratePerSec != null && metricGenHydratedFor !== stats.cardStrategy + '|' + stats.cardinality) {
+                metricGenHydratedFor = stats.cardStrategy + '|' + stats.cardinality;
+                if (stats.ratePerSec) document.getElementById('mg-rate').value = stats.ratePerSec;
+                if (stats.cardinality) document.getElementById('mg-card').value = stats.cardinality;
+                if (stats.cardStrategy) document.getElementById('mg-strategy').value = stats.cardStrategy;
+                if (stats.churnIntervalSec) document.getElementById('mg-churn-interval').value = stats.churnIntervalSec;
+                if (stats.churnFraction) document.getElementById('mg-churn-fraction').value = stats.churnFraction;
+                if (stats.histogramDist) document.getElementById('mg-histdist').value = stats.histogramDist;
+                if (stats.workers) document.getElementById('mg-workers').value = stats.workers;
+                if (stats.durationSec != null) document.getElementById('mg-duration').value = stats.durationSec;
+                if (stats.kinds && stats.kinds.length) {
+                    const set = new Set(stats.kinds);
+                    document.querySelectorAll('#mg-kinds input').forEach(el => el.checked = set.has(el.value));
+                }
+                updateMetricGenChurnVisibility();
+            }
+
+            const series = stats.series || [];
+            const labels = series.map(p => new Date(p.t).toLocaleTimeString([], { hour12: false }));
+            if (ppsChart) {
+                ppsChart.data.labels = labels;
+                ppsChart.data.datasets[0].data = series.map(p => p.achievedRps);
+                ppsChart.data.datasets[1].data = series.map(p => p.targetRps);
+                ppsChart.update('none');
+            }
+        }
+
+        async function startMetricGen() {
+            const kinds = Array.from(document.querySelectorAll('#mg-kinds input:checked')).map(el => el.value);
+            const body = {
+                ratePerSec:       parseInt(document.getElementById('mg-rate').value, 10),
+                cardinality:      parseInt(document.getElementById('mg-card').value, 10),
+                cardStrategy:     document.getElementById('mg-strategy').value,
+                churnIntervalSec: parseInt(document.getElementById('mg-churn-interval').value, 10) || 30,
+                churnFraction:    parseFloat(document.getElementById('mg-churn-fraction').value) || 0.1,
+                histogramDist:    document.getElementById('mg-histdist').value,
+                workers:          parseInt(document.getElementById('mg-workers').value, 10) || 0,
+                durationSec:      parseInt(document.getElementById('mg-duration').value, 10) || 0,
+                kinds:            kinds,
+            };
+            try {
+                const resp = await fetch('/admin/api/metricloadgen/start', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+                });
+                if (!resp.ok) { showStatus(`Failed to start metric gen: ${await resp.text()}`, 'error'); return; }
+                showStatus('Synthetic metric generation started', 'success');
+                metricGenHydratedFor = null; // let the next stats refresh re-hydrate
+                await refreshMetricGenStats();
+            } catch (e) {
+                showStatus(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        async function stopMetricGen() {
+            try {
+                const resp = await fetch('/admin/api/metricloadgen/stop', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+                });
+                if (!resp.ok) { showStatus(`Failed to stop metric gen: ${await resp.text()}`, 'error'); return; }
+                showStatus('Synthetic metric generation stopped', 'success');
+                await refreshMetricGenStats();
+            } catch (e) {
+                showStatus(`Error: ${e.message}`, 'error');
+            }
+        }
+
+        // ============================================================
+        // Synthetic Trace Generation
+        // ============================================================
+        let traceGenRefreshInterval = null;
+        let traceGenMeta = { durationProfiles: [] };
+        let tpsChart = null;
+        let traceGenHydrated = false;
+
+        async function initTraceGen() {
+            try {
+                const resp = await fetch('/admin/api/traceloadgen/meta');
+                traceGenMeta = await resp.json();
+            } catch (e) {
+                console.error('traceloadgen meta:', e);
+                return;
+            }
+            const sel = document.getElementById('tg-duration-profile');
+            sel.innerHTML = (traceGenMeta.durationProfiles || []).map(p => `<option value="${p}">${p}</option>`).join('');
+            document.getElementById('tg-highcard').addEventListener('change', updateTraceGenHighCardVisibility);
+            document.getElementById('tg-depth').addEventListener('input', updateTraceGenSpansPreview);
+            document.getElementById('tg-fanout').addEventListener('input', updateTraceGenSpansPreview);
+            updateTraceGenHighCardVisibility();
+            updateTraceGenSpansPreview();
+
+            await refreshTraceGenStats();
+            startTraceGenPolling();
+
+            try {
+                if (typeof Chart === 'undefined') throw new Error('Chart.js unavailable');
+                initTraceGenChart();
+                await refreshTraceGenStats();
+            } catch (e) {
+                console.warn('trace-gen chart disabled:', e.message);
+            }
+        }
+
+        function updateTraceGenHighCardVisibility() {
+            const enabled = document.getElementById('tg-highcard').checked;
+            document.getElementById('tg-highcard-pool-wrap').style.display = enabled ? '' : 'none';
+        }
+
+        function updateTraceGenSpansPreview() {
+            const d = parseInt(document.getElementById('tg-depth').value, 10) || 1;
+            const f = parseInt(document.getElementById('tg-fanout').value, 10) || 1;
+            let total, pow = 1;
+            if (d <= 1) total = 1;
+            else if (f === 1) total = d;
+            else {
+                total = 1;
+                for (let i = 1; i < d; i++) { pow *= f; total += pow; }
+            }
+            document.getElementById('tg-spans-per-trace').textContent = `= ${total.toLocaleString()} spans/trace`;
+        }
+
+        function initTraceGenChart() {
+            tpsChart = new Chart(document.getElementById('tg-chart-tps'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Achieved (traces/s)', data: [], borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.1)', tension: 0.25, pointRadius: 0 },
+                        { label: 'Target (traces/s)', data: [], borderColor: '#6c757d', borderDash: [6,6], tension: 0, pointRadius: 0 },
+                    ],
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: {
+                        x: { display: true, ticks: { maxTicksLimit: 8 } },
+                        y: { display: true, title: { display: true, text: 'traces/sec' }, beginAtZero: true },
+                    },
+                },
+            });
+        }
+
+        function startTraceGenPolling() {
+            if (traceGenRefreshInterval) return;
+            traceGenRefreshInterval = setInterval(refreshTraceGenStats, 1000);
+        }
+
+        async function refreshTraceGenStats() {
+            try {
+                const resp = await fetch('/admin/api/traceloadgen/stats');
+                if (!resp.ok) return;
+                renderTraceGenStats(await resp.json());
+            } catch (e) {}
+        }
+
+        function renderTraceGenStats(stats) {
+            document.getElementById('tg-total-traces').textContent = (stats.tracesEmitted || 0).toLocaleString();
+            document.getElementById('tg-total-spans').textContent = (stats.spansEmitted || 0).toLocaleString();
+            document.getElementById('tg-total-errors').textContent = (stats.errors || 0).toLocaleString();
+            document.getElementById('tg-total-elapsed').textContent = Math.round(stats.elapsedSeconds || 0) + 's';
+
+            const running = !!stats.isRunning;
+            document.getElementById('tg-running').style.display = running ? '' : 'none';
+            document.getElementById('tg-start-btn').disabled = running;
+            document.getElementById('tg-stop-btn').disabled = !running;
+            ['tg-tps','tg-depth','tg-fanout','tg-duration-profile','tg-error-rate','tg-services','tg-workers','tg-duration','tg-highcard','tg-highcard-pool'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.disabled = running;
+            });
+
+            if (!traceGenHydrated && (stats.tracesPerSec || stats.depth)) {
+                traceGenHydrated = true;
+                if (stats.tracesPerSec)         document.getElementById('tg-tps').value = stats.tracesPerSec;
+                if (stats.depth)                document.getElementById('tg-depth').value = stats.depth;
+                if (stats.fanout)               document.getElementById('tg-fanout').value = stats.fanout;
+                if (stats.durationProfile)      document.getElementById('tg-duration-profile').value = stats.durationProfile;
+                if (stats.errorRate != null)    document.getElementById('tg-error-rate').value = stats.errorRate;
+                if (stats.serviceCount)         document.getElementById('tg-services').value = stats.serviceCount;
+                if (stats.workers)              document.getElementById('tg-workers').value = stats.workers;
+                if (stats.durationSec != null)  document.getElementById('tg-duration').value = stats.durationSec;
+                document.getElementById('tg-highcard').checked = !!stats.highCardAttrs;
+                if (stats.highCardAttrPoolSize) document.getElementById('tg-highcard-pool').value = stats.highCardAttrPoolSize;
+                updateTraceGenHighCardVisibility();
+                updateTraceGenSpansPreview();
+            }
+
+            const series = stats.series || [];
+            if (tpsChart) {
+                tpsChart.data.labels = series.map(p => new Date(p.t).toLocaleTimeString([], { hour12: false }));
+                tpsChart.data.datasets[0].data = series.map(p => p.achievedRps);
+                tpsChart.data.datasets[1].data = series.map(p => p.targetRps);
+                tpsChart.update('none');
+            }
+        }
+
+        async function startTraceGen() {
+            const body = {
+                tracesPerSec:         parseInt(document.getElementById('tg-tps').value, 10),
+                depth:                parseInt(document.getElementById('tg-depth').value, 10),
+                fanout:               parseInt(document.getElementById('tg-fanout').value, 10),
+                durationProfile:      document.getElementById('tg-duration-profile').value,
+                errorRate:            parseFloat(document.getElementById('tg-error-rate').value) || 0,
+                serviceCount:         parseInt(document.getElementById('tg-services').value, 10),
+                highCardAttrs:        document.getElementById('tg-highcard').checked,
+                highCardAttrPoolSize: parseInt(document.getElementById('tg-highcard-pool').value, 10) || 10000,
+                workers:              parseInt(document.getElementById('tg-workers').value, 10) || 0,
+                durationSec:          parseInt(document.getElementById('tg-duration').value, 10) || 0,
+            };
+            try {
+                const resp = await fetch('/admin/api/traceloadgen/start', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+                });
+                if (!resp.ok) { showStatus(`Failed to start trace gen: ${await resp.text()}`, 'error'); return; }
+                showStatus('Synthetic trace generation started', 'success');
+                traceGenHydrated = false;
+                await refreshTraceGenStats();
+            } catch (e) { showStatus(`Error: ${e.message}`, 'error'); }
+        }
+
+        async function stopTraceGen() {
+            try {
+                const resp = await fetch('/admin/api/traceloadgen/stop', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+                });
+                if (!resp.ok) { showStatus(`Failed to stop trace gen: ${await resp.text()}`, 'error'); return; }
+                showStatus('Synthetic trace generation stopped', 'success');
+                await refreshTraceGenStats();
+            } catch (e) { showStatus(`Error: ${e.message}`, 'error'); }
+        }
     </script>
 </body>
 </html>
