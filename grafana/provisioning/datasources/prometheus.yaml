@@ -1,4 +1,4 @@
-# Provisioned Prometheus datasource — see docker-compose service `prometheus`.
+# Provisioned Prometheus datasource — the main stack's Prometheus (docker-compose.yml).
 apiVersion: 1
 
 datasources:
@@ -6,8 +6,8 @@ datasources:
     uid: prometheus
     type: prometheus
     access: proxy
-    # Container-to-container URL on the shared docker network.
-    url: http://prometheus:9090
+    # Main stack Prometheus via its published port; set in docker-compose.lgtm.yml.
+    url: ${PROMETHEUS_URL}
     isDefault: true
     editable: false
     jsonData:

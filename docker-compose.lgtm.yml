@@ -1,0 +1,163 @@
+# LGTM stack (Loki, Grafana, Tempo, Mimir) — deployed separately from the main
+# SLO Metric Generator stack in docker-compose.yml.
+#
+#   docker compose -f docker-compose.lgtm.yml up -d
+#
+# The two stacks share no Docker network; they talk over published host ports,
+# so this stack can run on the same machine or a different one:
+#   collector → Loki   http://<lgtm-host>:3100/otlp
+#   collector → Tempo  <lgtm-host>:4417            (OTLP gRPC)
+#   collector → Mimir  http://<lgtm-host>:9009/api/v1/push
+#   Grafana   → Prometheus  $PROMETHEUS_URL        (main stack, default host:9091)
+#
+# LOCAL DEV ONLY: MinIO uses a well-known password and Grafana grants anonymous
+# Admin. Do not expose these ports on an untrusted network.
+name: slo-lgtm
+
+services:
+  # MinIO — S3-compatible object storage for Loki, Tempo and Mimir.
+  # Deliberately not named "minio" so it doesn't conflict with any minio you already
+  # run at the host level.
+  minio-lgtm:
+    image: minio/minio:latest
+    container_name: minio-lgtm
+    command: server /data --console-address ":9101"
+    environment:
+      - MINIO_ROOT_USER=lgtmadmin
+      - MINIO_ROOT_PASSWORD=lgtmadmin123
+    ports:
+      # S3 API and web console — separate ports from the default MinIO so both can
+      # coexist on the host.
+      - "9100:9000"
+      - "9101:9101"
+    volumes:
+      - minio-lgtm-data:/data
+    networks:
+      - lgtm-network
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Bucket bootstrap — creates the three buckets LGTM needs, then exits.
+  # depends_on with `condition: service_completed_successfully` makes L/T/M wait
+  # for this to finish before starting so they never race on a missing bucket.
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      minio-lgtm:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set lgtm http://minio-lgtm:9000 lgtmadmin lgtmadmin123 &&
+      mc mb --ignore-existing lgtm/loki-data lgtm/tempo-data lgtm/mimir-data &&
+      echo 'buckets ready:' && mc ls lgtm
+      "
+    networks:
+      - lgtm-network
+
+  # Loki — log store, indexes labels not full text. OTLP ingest on /otlp.
+  loki:
+    image: grafana/loki:3.4.1
+    container_name: loki
+    # Run as root so Loki can create its scratch dirs inside the named volume.
+    # Grafana's Loki image ships as uid 10001, but freshly-provisioned docker
+    # volumes come up owned by root — least-friction dev fix is to run as root.
+    user: "0:0"
+    command: ["-config.file=/etc/loki/config.yaml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./configs/loki-config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/var/loki   # local scratch (compactor + WAL); chunks/index live in MinIO
+    networks:
+      - lgtm-network
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Tempo — trace store. Host 3200 is the HTTP query API. OTLP gRPC is published
+  # on host 4417 because the main stack's collector already owns host 4317.
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: tempo
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    ports:
+      - "3200:3200"
+      - "4417:4317"
+    volumes:
+      - ./configs/tempo-config.yaml:/etc/tempo/config.yaml:ro
+      - tempo-data:/var/tempo
+    networks:
+      - lgtm-network
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Mimir — Prometheus-compatible metric store. Both remote_write ingestion
+  # and PromQL query happen on 9009.
+  mimir:
+    image: grafana/mimir:2.13.0
+    container_name: mimir
+    # Same volume-ownership reason as Loki above.
+    user: "0:0"
+    command: ["-config.file=/etc/mimir/config.yaml"]
+    ports:
+      - "9009:9009"
+    volumes:
+      - ./configs/mimir-config.yaml:/etc/mimir/config.yaml:ro
+      - mimir-data:/var/mimir
+    networks:
+      - lgtm-network
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Grafana — provisioned LGTM datasources plus the main stack's Prometheus.
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      # Anonymous admin for local dev — no login prompt.
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_USERS_DEFAULT_THEME=dark
+      # Main stack's Prometheus, reached over its published port. Override when
+      # the main stack runs on another host.
+      - PROMETHEUS_URL=${PROMETHEUS_URL:-http://host.docker.internal:9091}
+    extra_hosts:
+      # Makes host.docker.internal resolve on Linux too (built in on Mac/Windows).
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - lgtm-network
+    depends_on:
+      - loki
+      - tempo
+      - mimir
+    restart: unless-stopped
+
+networks:
+  lgtm-network:
+    driver: bridge
+
+volumes:
+  # Object storage backing all of LGTM. Survives container recreation; wipe with
+  # `docker compose -f docker-compose.lgtm.yml down -v` if you want a clean state.
+  minio-lgtm-data:
+  # Per-service local scratch (WAL, compactor working dir, etc). Not the durable
+  # store — that's MinIO. These can be blown away without data loss.
+  loki-data:
+  tempo-data:
+  mimir-data:
