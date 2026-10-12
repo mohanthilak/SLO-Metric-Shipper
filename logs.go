@@ -50,6 +50,11 @@ func InitLogs(ctx context.Context) error {
 	slog.SetDefault(slog.New(otelslog.NewHandler("slo-metric-generator",
 		otelslog.WithLoggerProvider(loggerProvider),
 	)))
+	// slog.SetDefault also redirects the stdlib log package into the slog handler,
+	// which would swallow every log.Printf (startup banner included) into OTLP and
+	// leave `docker logs` silent. Keep stdlib log on stderr; slog stays on OTel.
+	stdlog.SetOutput(os.Stderr)
+	stdlog.SetFlags(stdlog.LstdFlags)
 
 	stdlog.Printf("Logs initialized with OTLP endpoint: %s", endpoint)
 	return nil

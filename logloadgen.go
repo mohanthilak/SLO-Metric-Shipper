@@ -37,6 +37,7 @@ type LogLoadRequest struct {
 	RatePerSec  int               `json:"ratePerSec"`
 	BytesPerLog int               `json:"bytesPerLog"`
 	Format      string            `json:"format"`
+	Kinds       []string          `json:"kinds,omitempty"` // content domains; empty = generic lorem filler
 	Sink        string            `json:"sink"`
 	SinkTarget  string            `json:"sinkTarget"`
 	SinkHeaders map[string]string `json:"sinkHeaders,omitempty"` // HTTP direct only; ignored otherwise
@@ -60,6 +61,7 @@ type LogLoadStats struct {
 	RatePerSec     int               `json:"ratePerSec"`
 	BytesPerLog    int               `json:"bytesPerLog"`
 	Format         string            `json:"format"`
+	Kinds          []string          `json:"kinds,omitempty"`
 	Sink           string            `json:"sink"`
 	SinkTarget     string            `json:"sinkTarget,omitempty"`
 	// SinkHeaders returns the *keys* of the operator-supplied headers, with values
@@ -95,6 +97,7 @@ type LogLoadJob struct {
 	RatePerSec  int
 	BytesPerLog int
 	Format      string
+	Kinds       []string
 	Sink        string
 	SinkTarget  string
 	Headers     map[string]string
@@ -103,6 +106,7 @@ type LogLoadJob struct {
 	StartTime   time.Time
 
 	sink   LogSink
+	content *LogContent
 	cancel context.CancelFunc
 	done   chan struct{}
 
@@ -236,8 +240,12 @@ func (g *LogLoadGenerator) Start(req LogLoadRequest) error {
 		return fmt.Errorf("unknown format %q", req.Format)
 	}
 
+	content, err := NewLogContent(req.Kinds)
+	if err != nil {
+		return err
+	}
+
 	var sink LogSink
-	var err error
 	switch req.Sink {
 	case "otlp":
 		if g.otlpSink == nil {
@@ -269,6 +277,7 @@ func (g *LogLoadGenerator) Start(req LogLoadRequest) error {
 		RatePerSec:  req.RatePerSec,
 		BytesPerLog: req.BytesPerLog,
 		Format:      req.Format,
+		Kinds:       req.Kinds,
 		Sink:        req.Sink,
 		SinkTarget:  req.SinkTarget,
 		Headers:     req.SinkHeaders,
@@ -276,6 +285,7 @@ func (g *LogLoadGenerator) Start(req LogLoadRequest) error {
 		DurationSec: req.DurationSec,
 		StartTime:   time.Now(),
 		sink:        sink,
+		content:     content,
 		cancel:      cancel,
 		done:        make(chan struct{}),
 		series:      newSeriesBuffer(),
@@ -328,6 +338,7 @@ func (g *LogLoadGenerator) Stats() LogLoadStats {
 				RatePerSec:  saved.RatePerSec,
 				BytesPerLog: saved.BytesPerLog,
 				Format:      saved.Format,
+				Kinds:       saved.Kinds,
 				Sink:        saved.Sink,
 				SinkTarget:  saved.SinkTarget,
 				SinkHeaders: redactHeaders(saved.SinkHeaders),
@@ -355,6 +366,7 @@ func (g *LogLoadGenerator) Stats() LogLoadStats {
 		RatePerSec:     job.RatePerSec,
 		BytesPerLog:    job.BytesPerLog,
 		Format:         job.Format,
+		Kinds:          job.Kinds,
 		Sink:           job.Sink,
 		SinkTarget:     job.SinkTarget,
 		SinkHeaders:    redactHeaders(job.Headers),
@@ -382,6 +394,7 @@ func (g *LogLoadGenerator) runJob(ctx context.Context, job *LogLoadJob, formatte
 			RatePerSec:     job.RatePerSec,
 			BytesPerLog:    job.BytesPerLog,
 			Format:         job.Format,
+			Kinds:          job.Kinds,
 			Sink:           job.Sink,
 			SinkTarget:     job.SinkTarget,
 			SinkHeaders:    redactHeaders(job.Headers),
@@ -505,7 +518,7 @@ pacerLoop:
 
 func (g *LogLoadGenerator) emitOne(ctx context.Context, job *LogLoadJob, formatter LogFormatter) {
 	seq := job.seqCtr.Add(1)
-	record, level := formatter.Format(seq, job.BytesPerLog)
+	record, level := formatter.Format(seq, job.BytesPerLog, job.content)
 	if err := job.sink.Send(ctx, record, level, formatter.ContentType()); err != nil {
 		job.errors.Add(1)
 		return

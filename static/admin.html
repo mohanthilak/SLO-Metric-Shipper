@@ -597,6 +597,10 @@
                 <label>Format
                     <select id="lg-format"></select>
                 </label>
+                <div id="lg-kinds-wrap" style="grid-column: 1 / -1;">
+                    <div style="font-size:0.85em; color:#555;">Log content kinds — <em>none checked = generic lorem-ipsum filler</em></div>
+                    <div id="lg-kinds" class="mg-kinds"></div>
+                </div>
                 <label>Sink
                     <select id="lg-sink"></select>
                 </label>
@@ -1429,6 +1433,9 @@
             });
             // Always add an "Upload/create new sample" pseudo-option that reveals the sample-upload panel.
             formatOpts.push('<option value="__new_replay__">＋ Upload new replay sample…</option>');
+            document.getElementById('lg-kinds').innerHTML = (logGenMeta.kinds || []).map(k =>
+                `<label><input type="checkbox" value="${k.key}"> ${k.label}</label>`
+            ).join('');
             fmtSel.innerHTML = formatOpts.join('');
             sinkSel.innerHTML = logGenMeta.sinks.map(s => `<option value="${s.key}" data-needs-target="${s.needsTarget}">${s.label}</option>`).join('');
 
@@ -1530,6 +1537,10 @@
             document.getElementById('lg-target-wrap').style.display = needsTarget ? '' : 'none';
             document.getElementById('lg-headers-wrap').style.display = isHTTP ? '' : 'none';
             document.getElementById('lg-replay-wrap').style.display = isNewReplay ? '' : 'none';
+            // Replay ships the file verbatim, so content kinds don't apply.
+            const fmtVal = document.getElementById('lg-format').value;
+            const isReplay = isNewReplay || fmtVal.startsWith('replay:');
+            document.getElementById('lg-kinds-wrap').style.display = isReplay ? 'none' : '';
 
             // Show the OTLP-vs-format-faithfulness warning only when sink=otlp.
             const warn = document.getElementById('lg-warn');
@@ -1629,6 +1640,7 @@
                 const el = document.getElementById(id);
                 if (el) el.disabled = running;
             });
+            document.querySelectorAll('#lg-kinds input').forEach(el => el.disabled = running);
 
             // Hydrate form from the server so a page reload while a job is running (or
             // just finished — the frozen snapshot has the same fields) shows the real
@@ -1672,6 +1684,8 @@
             if (stats.ratePerSec)  document.getElementById('lg-rate').value    = stats.ratePerSec;
             if (stats.bytesPerLog) document.getElementById('lg-bytes').value   = stats.bytesPerLog;
             if (stats.format)      document.getElementById('lg-format').value  = stats.format;
+            const kindSet = new Set(stats.kinds || []);
+            document.querySelectorAll('#lg-kinds input').forEach(el => el.checked = kindSet.has(el.value));
             document.getElementById('lg-sink').value    = stats.sink;
             document.getElementById('lg-target').value  = stats.sinkTarget || '';
             document.getElementById('lg-workers').value = stats.workers || 0;
@@ -1743,6 +1757,7 @@
                 ratePerSec:   parseInt(document.getElementById('lg-rate').value, 10),
                 bytesPerLog:  parseInt(document.getElementById('lg-bytes').value, 10),
                 format:       document.getElementById('lg-format').value,
+                kinds:        Array.from(document.querySelectorAll('#lg-kinds input:checked')).map(el => el.value),
                 sink:         document.getElementById('lg-sink').value,
                 sinkTarget:   document.getElementById('lg-target').value,
                 workers:      parseInt(document.getElementById('lg-workers').value, 10) || 0,

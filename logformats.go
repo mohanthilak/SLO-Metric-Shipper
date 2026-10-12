@@ -19,7 +19,7 @@ import (
 // Formatters MUST NOT truncate structural fields to satisfy targetBytes — they pad the
 // message field instead, and if the envelope already exceeds targetBytes, they emit as-is.
 type LogFormatter interface {
-	Format(seq int64, targetBytes int) (record string, level string)
+	Format(seq int64, targetBytes int, c *LogContent) (record string, level string)
 	Name() string
 	ContentType() string // "" for line protocols (syslog/plaintext); MIME for HTTP direct sink
 }
@@ -70,7 +70,7 @@ func pick[T any](s []T) T { return s[mrand.Intn(len(s))] }
 
 // padTo grows s with word-like filler until it reaches targetBytes. If s already exceeds
 // target, s is returned unchanged.
-func padTo(s string, targetBytes int) string {
+func padTo(s string, targetBytes int, c *LogContent) string {
 	if len(s) >= targetBytes {
 		return s
 	}
@@ -84,7 +84,7 @@ func padTo(s string, targetBytes int) string {
 		need--
 	}
 	for need > 0 {
-		w := fillerWords[mrand.Intn(len(fillerWords))]
+		w := c.fillerWord()
 		if need <= len(w) {
 			b.WriteString(w[:need])
 			need = 0
@@ -136,9 +136,9 @@ type jsonFormatter struct{}
 
 func (jsonFormatter) Name() string        { return "json" }
 func (jsonFormatter) ContentType() string { return "application/json" }
-func (jsonFormatter) Format(seq int64, targetBytes int) (string, string) {
+func (jsonFormatter) Format(seq int64, targetBytes int, c *LogContent) (string, string) {
 	level := pick(sampleLevels)
-	msg := pick(sampleMessages)
+	msg := c.message()
 	// Hand-serialised JSON to keep the hot path allocation-light.
 	var b strings.Builder
 	b.WriteString(`{"timestamp":"`)
@@ -160,7 +160,7 @@ func (jsonFormatter) Format(seq int64, targetBytes int) (string, string) {
 	if msgBudget < len(msg) {
 		msgBudget = len(msg) // never truncate structural content
 	}
-	b.WriteString(escapeJSON(padTo(msg, msgBudget)))
+	b.WriteString(escapeJSON(padTo(msg, msgBudget, c)))
 	b.WriteString(`"}`)
 	return b.String(), level
 }
@@ -181,7 +181,7 @@ type syslog3164Formatter struct{}
 
 func (syslog3164Formatter) Name() string        { return "syslog3164" }
 func (syslog3164Formatter) ContentType() string { return "" }
-func (syslog3164Formatter) Format(seq int64, targetBytes int) (string, string) {
+func (syslog3164Formatter) Format(seq int64, targetBytes int, c *LogContent) (string, string) {
 	level := pick(sampleLevels)
 	pri := severityToPRI(level)
 	// Mmm d hh:mm:ss (day is space-padded, not zero-padded, per RFC3164).
@@ -189,8 +189,8 @@ func (syslog3164Formatter) Format(seq int64, targetBytes int) (string, string) {
 	ts := now.Format("Jan _2 15:04:05")
 	app := pick(sampleServices)
 	envelope := fmt.Sprintf("<%d>%s %s %s[%d]: ", pri, ts, hostname, app, processID)
-	msg := fmt.Sprintf("seq=%d %s", seq, pick(sampleMessages))
-	return padTo(envelope+msg, targetBytes), level
+	msg := fmt.Sprintf("seq=%d %s", seq, c.message())
+	return padTo(envelope+msg, targetBytes, c), level
 }
 
 // ---------- Syslog RFC5424 (IETF) ----------
@@ -199,7 +199,7 @@ type syslog5424Formatter struct{}
 
 func (syslog5424Formatter) Name() string        { return "syslog5424" }
 func (syslog5424Formatter) ContentType() string { return "" }
-func (syslog5424Formatter) Format(seq int64, targetBytes int) (string, string) {
+func (syslog5424Formatter) Format(seq int64, targetBytes int, c *LogContent) (string, string) {
 	level := pick(sampleLevels)
 	pri := severityToPRI(level)
 	ts := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
@@ -207,8 +207,8 @@ func (syslog5424Formatter) Format(seq int64, targetBytes int) (string, string) {
 	msgID := fmt.Sprintf("ID%d", seq%1000)
 	// <PRI>1 TIMESTAMP HOSTNAME APP-NAME PROCID MSGID SD MSG
 	envelope := fmt.Sprintf("<%d>1 %s %s %s %d %s %s ", pri, ts, hostname, app, processID, msgID, messageSD)
-	msg := fmt.Sprintf("seq=%d %s", seq, pick(sampleMessages))
-	return padTo(envelope+msg, targetBytes), level
+	msg := fmt.Sprintf("seq=%d %s", seq, c.message())
+	return padTo(envelope+msg, targetBytes, c), level
 }
 
 // ---------- logfmt ----------
@@ -217,9 +217,9 @@ type logfmtFormatter struct{}
 
 func (logfmtFormatter) Name() string        { return "logfmt" }
 func (logfmtFormatter) ContentType() string { return "text/plain" }
-func (logfmtFormatter) Format(seq int64, targetBytes int) (string, string) {
+func (logfmtFormatter) Format(seq int64, targetBytes int, c *LogContent) (string, string) {
 	level := pick(sampleLevels)
-	msg := pick(sampleMessages)
+	msg := c.message()
 	envelope := fmt.Sprintf(
 		`ts=%s level=%s service=%s host=%s seq=%d trace_id=%s msg=`,
 		time.Now().UTC().Format(time.RFC3339Nano),
@@ -234,7 +234,7 @@ func (logfmtFormatter) Format(seq int64, targetBytes int) (string, string) {
 	if msgBudget < len(msg) {
 		msgBudget = len(msg)
 	}
-	return envelope + `"` + padTo(msg, msgBudget) + `"`, level
+	return envelope + `"` + padTo(msg, msgBudget, c) + `"`, level
 }
 
 // ---------- Apache Common Log Format ----------
@@ -243,7 +243,7 @@ type clfFormatter struct{}
 
 func (clfFormatter) Name() string        { return "clf" }
 func (clfFormatter) ContentType() string { return "text/plain" }
-func (clfFormatter) Format(seq int64, targetBytes int) (string, string) {
+func (clfFormatter) Format(seq int64, targetBytes int, c *LogContent) (string, string) {
 	// host ident authuser [date] "METHOD path HTTP/1.1" status size
 	// Choose a status; treat non-2xx as WARN/ERROR for stats.
 	statusCodes := []int{200, 200, 200, 200, 301, 404, 500, 502}
@@ -266,7 +266,7 @@ func (clfFormatter) Format(seq int64, targetBytes int) (string, string) {
 	if len(envelope) >= targetBytes {
 		return envelope, level
 	}
-	return envelope + " " + padTo("#seq="+strconv.FormatInt(seq, 10), targetBytes-len(envelope)-1), level
+	return envelope + " " + padTo("#seq="+strconv.FormatInt(seq, 10), targetBytes-len(envelope)-1, c), level
 }
 
 // ---------- CEF (Common Event Format) — ArcSight/Splunk security-event standard ----------
@@ -287,7 +287,7 @@ var (
 
 func (cefFormatter) Name() string        { return "cef" }
 func (cefFormatter) ContentType() string { return "text/plain" }
-func (cefFormatter) Format(seq int64, targetBytes int) (string, string) {
+func (cefFormatter) Format(seq int64, targetBytes int, c *LogContent) (string, string) {
 	sev := cefSeverities[mrand.Intn(len(cefSeverities))]
 	// Map CEF severity → text level for stats.
 	level := "INFO"
@@ -316,9 +316,14 @@ func (cefFormatter) Format(seq int64, targetBytes int) (string, string) {
 		mrand.Intn(10000), seq))
 	// Pad by appending more k=v pairs. Never truncate structural fields.
 	for b.Len() < targetBytes {
-		k := cefExtKeys[mrand.Intn(len(cefExtKeys))]
-		v := fillerWords[mrand.Intn(len(fillerWords))]
-		add := fmt.Sprintf(" %s=%s", k, v)
+		// Kind filler tokens are already k=v pairs; generic content pairs a CEF key
+		// with a lorem word as before.
+		var add string
+		if c != nil && len(c.kinds) > 0 {
+			add = " " + c.fillerWord()
+		} else {
+			add = fmt.Sprintf(" %s=%s", pick(cefExtKeys), pick(fillerWords))
+		}
 		if b.Len()+len(add) > targetBytes {
 			// Not enough room for another full pair — fill with a single k= to
 			// meet the byte target while keeping the wire shape parsable.
@@ -389,7 +394,7 @@ func (f *fileReplayFormatter) load() error {
 
 func (f *fileReplayFormatter) Name() string        { return "replay:" + f.name }
 func (f *fileReplayFormatter) ContentType() string { return "text/plain" }
-func (f *fileReplayFormatter) Format(seq int64, targetBytes int) (string, string) {
+func (f *fileReplayFormatter) Format(seq int64, targetBytes int, c *LogContent) (string, string) {
 	if f.err != nil {
 		// Emit a diagnostic line so operators see the load failure downstream.
 		return "REPLAY_ERROR: " + f.err.Error(), "ERROR"
@@ -425,7 +430,7 @@ type plaintextFormatter struct{}
 
 func (plaintextFormatter) Name() string        { return "plaintext" }
 func (plaintextFormatter) ContentType() string { return "text/plain" }
-func (plaintextFormatter) Format(seq int64, targetBytes int) (string, string) {
+func (plaintextFormatter) Format(seq int64, targetBytes int, c *LogContent) (string, string) {
 	level := pick(sampleLevels)
 	envelope := fmt.Sprintf("%s %s %s: seq=%d ",
 		time.Now().UTC().Format("2006-01-02T15:04:05Z"),
@@ -433,7 +438,7 @@ func (plaintextFormatter) Format(seq int64, targetBytes int) (string, string) {
 		pick(sampleServices),
 		seq,
 	)
-	return padTo(envelope+pick(sampleMessages), targetBytes), level
+	return padTo(envelope+c.message(), targetBytes, c), level
 }
 
 // ---------- Registry ----------

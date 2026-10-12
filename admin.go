@@ -215,8 +215,8 @@ func (h *AdminHandler) StartLogLoadGen(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	log.Printf("Started synthetic log job: rate=%d bytes=%d format=%s sink=%s target=%s workers=%d dur=%d",
-		req.RatePerSec, req.BytesPerLog, req.Format, req.Sink, req.SinkTarget, req.Workers, req.DurationSec)
+	log.Printf("Started synthetic log job: rate=%d bytes=%d format=%s kinds=%v sink=%s target=%s workers=%d dur=%d",
+		req.RatePerSec, req.BytesPerLog, req.Format, req.Kinds, req.Sink, req.SinkTarget, req.Workers, req.DurationSec)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":  "success",
@@ -264,6 +264,7 @@ func (h *AdminHandler) GetLogLoadMeta(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"formats":       FormatMetadata(),
+		"kinds":         KindMetadata(),
 		"sinks":         SinkMetadata(),
 		"replaySamples": ListReplaySamples(),
 	})
